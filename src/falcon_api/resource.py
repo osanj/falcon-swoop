@@ -8,7 +8,7 @@ import falcon
 from pydantic import BaseModel
 from pydantic.fields import FieldInfo
 
-from falcon_simpleapi.model import Param
+from falcon_api.model import Param
 
 
 @dataclass

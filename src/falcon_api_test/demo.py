@@ -1,4 +1,4 @@
-from falcon_simpleapi import ApiBaseResource, operation, ApiQueryParam
+from falcon_api import ApiBaseResource, operation, ApiQueryParam
 from pydantic import BaseModel, Field
 import falcon
 import falcon.testing
