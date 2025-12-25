@@ -3,6 +3,17 @@ name = "falcon-api"
 description = "Build simple APIs on top of falcon with pydantic data models and automatic openapi docs"
 requires-python = ">=3.10"
 
+[tool.pytest]
+minversion = "9.0"
+testpaths = ["src/falcon_api_test"]
+python_files = ["*.py"]
+python_functions = ["test_*"]
+
+[tool.mypy]
+packages = "src"
+strict = true
+plugins = "pydantic.mypy"
+
 [tool.black]
 line-length = 120
-target-version = ['py310']
+target-version = ["py310"]

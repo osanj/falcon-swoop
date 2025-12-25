@@ -12,13 +12,16 @@ class Param:
 
 P = ParamSpec("P")
 
+
 def ApiHeaderParam(*args: P.args, **kwargs: P.kwargs) -> Param:
     field_info = Field(*args, **kwargs)
     return Param(field_info, "header")
 
+
 def ApiQueryParam(*args: P.args, **kwargs: P.kwargs) -> Param:
     field_info = Field(*args, **kwargs)
     return Param(field_info, "query")
+
 
 def ApiPathParam(*args: P.args, **kwargs: P.kwargs) -> Param:
     field_info = Field(*args, **kwargs)
