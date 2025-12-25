@@ -1,0 +1,8 @@
+[project]
+name = "falcon-api"
+description = "Build simple APIs on top of falcon with pydantic data models and automatic openapi docs"
+requires-python = ">=3.10"
+
+[tool.black]
+line-length = 120
+target-version = ['py310']

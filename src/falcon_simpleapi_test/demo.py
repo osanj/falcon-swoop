@@ -1,5 +1,5 @@
-from falcon_simpleapi.resource import BaseResource, operation
-from pydantic import BaseModel
+from falcon_simpleapi import ApiBaseResource, operation, ApiQueryParam
+from pydantic import BaseModel, Field
 import falcon
 import falcon.testing
 
@@ -13,13 +13,17 @@ class NewUserOutput(BaseModel):
     id: int
 
 
-class UserResource(BaseResource):
+class UserResource(ApiBaseResource):
 
     def __init__(self):
         super().__init__("/user")
 
     @operation(method="POST")
-    def create_new_user(self, user_input: NewUserInput, q_name) -> NewUserOutput:
+    def create_new_user(
+        self,
+        user_input: NewUserInput,
+        offset: int = ApiQueryParam(ge=1),
+    ) -> NewUserOutput:
         print(user_input)
         return NewUserOutput(id=5)
 
