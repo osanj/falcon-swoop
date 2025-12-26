@@ -2,7 +2,7 @@ import collections
 from dataclasses import dataclass
 
 import falcon
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from falcon_api.error import FalconApiConfigError
 from falcon_api.operation import ATTR_OPERATION, T_METHOD, OperationInfo
@@ -60,6 +60,14 @@ class ApiBaseResource:
         self.__context = RequestContext(req, resp)
 
         kwargs = {}
+
+        if op.query_input is not None:
+            try:
+                query_data: BaseModel = op.query_input(**req.params)
+            except ValidationError as e:
+                raise falcon.HTTPBadRequest(description=str(e))
+            kwargs.update(query_data.model_dump(by_alias=True))
+
         if op.func_input is not None:
             data = op.func_input.model(**req.get_media())
             kwargs[op.func_input.name] = data

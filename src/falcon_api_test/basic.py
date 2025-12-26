@@ -19,7 +19,7 @@ class BasicResource(ApiBaseResource):
         super().__init__("/basic")
 
     @operation(method="GET")
-    def basic_get(
+    def get_something(
         self,
         limit: int = ApiQueryParam(default=10, ge=1, le=20),
         offset: int = ApiQueryParam(ge=0),
@@ -27,7 +27,7 @@ class BasicResource(ApiBaseResource):
         return BasicOutput(param1=f"limit={limit}&offset={offset}")
 
     @operation(method="POST")
-    def basic_post(self, basic_input: BasicInput) -> BasicOutput:
+    def post_something(self, basic_input: BasicInput) -> BasicOutput:
         return BasicOutput(param1=basic_input.param1)
 
 
@@ -53,9 +53,9 @@ def test_missing_query_param_raises_400(resource: SimulatedResource) -> None:
     assert resp.status_code == 400
     resp2 = resource.simulate_get(params={"offset": 100})
     assert resp2.status_code == 200
-    assert resp2.text == "limit=10&offset=100"
+    assert resp2.json["param1"] == "limit=10&offset=100"
 
 
 def test_bad_query_param_raises_400(resource: SimulatedResource) -> None:
-    resp2 = resource.simulate_get(params={"offset": 100, "limit": 100})
-    assert resp2.status_code == 400
+    resp = resource.simulate_get(params={"offset": 100, "limit": 100})
+    assert resp.status_code == 400

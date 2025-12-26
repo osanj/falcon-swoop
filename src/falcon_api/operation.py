@@ -1,8 +1,8 @@
 import inspect
 from dataclasses import dataclass
-from typing import TypeVar, Literal, Callable, Type, Sequence
+from typing import TypeVar, Literal, Callable, Sequence
 
-from pydantic import BaseModel
+from pydantic import create_model, BaseModel
 from pydantic.fields import FieldInfo
 
 from falcon_api.error import FalconApiConfigError
@@ -18,13 +18,13 @@ ATTR_OPERATION = "operation"
 @dataclass
 class OperationApiModelInput:
     name: str
-    model: Type[T_MODEL]
+    model: type[T_MODEL]
 
 
 @dataclass
 class OperationApiParamInput:
     name: str
-    type: Type[bool | int | float | str]
+    annotation: type[bool | int | float | str]
     info: FieldInfo
 
 
@@ -36,18 +36,19 @@ class OperationDocs:
 @dataclass
 class OperationInfo:
     method: T_METHOD
-    operation_id: str | None
+    operation_id: str
     accept: list[T_MIME]
 
     func: Callable
     func_input: OperationApiModelInput | None
+    query_input: type[T_MODEL] | None
     # allow raw input?
     # accept mime type?
     func_output_model: type[T_MODEL] | None
 
     header_params: list[OperationApiParamInput]
     path_params: list[OperationApiParamInput]
-    query_params: list[OperationApiParamInput]
+    # query_params: list[OperationApiParamInput]
 
     docs: OperationDocs | None
 
@@ -93,7 +94,7 @@ def inspect_operation(
             )
         param_input = OperationApiParamInput(
             name=param_name,
-            type=param.annotation,
+            annotation=param.annotation,
             info=default.field_info,
         )
         if default.type == "header":
@@ -122,6 +123,16 @@ def inspect_operation(
             raise FalconApiConfigError(f"Return type needs to be a subclass of {BaseModel.__name__}")
         t_output = signature.return_annotation
 
+    if operation_id is None:
+        func_name_parts = func.__name__.split("_")
+        operation_id = "".join([func_name_parts[0]] + [p.capitalize() for p in func_name_parts[1:]])
+
+    query_input = None
+    if len(query_params) > 0:
+        query_input = create_model(f"{operation_id}QueryParams", **{
+            qp.name: (qp.annotation, qp.info) for qp in query_params
+        })
+
     return OperationInfo(
         method=method,
         operation_id=operation_id,
@@ -129,9 +140,9 @@ def inspect_operation(
         func=func,
         func_input=op_input,
         func_output_model=t_output,
+        query_input=query_input,
         header_params=header_params,
         path_params=path_params,
-        query_params=query_params,
         docs=docs,
     )
 
