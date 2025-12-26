@@ -6,7 +6,7 @@ from pydantic import create_model, BaseModel
 from pydantic.fields import FieldInfo
 
 from falcon_api.error import FalconApiConfigError
-from falcon_api.model import Param
+from falcon_api.param import Param, ParamKind
 
 
 HttpMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]  # , "OPTIONS"]
@@ -72,36 +72,35 @@ def inspect_operation(
     path_params: list[OperationApiParamInput] = []
     query_params: list[OperationApiParamInput] = []
 
-    allowed_param_types = (bool, int, float, str)
-
     input_params = signature.parameters.keys() - {"self"}
     used_param_names = []
     for param_name in input_params:
         param = signature.parameters[param_name]
-        if param.default is None:
+        if param.default is None or param.default == signature.empty:
             continue
         if not isinstance(param.default, Param):
             continue
         default: Param = param.default
         if param.annotation is None:
             raise FalconApiConfigError(
-                f"Parameter {param.name} requires type annotation, possible types are {allowed_param_types}"
+                f"{default.kind.capitalize()} parameter {param.name} requires type annotation, "
+                f"possible types are {default.allowed_types}"
             )
-        if param.annotation not in allowed_param_types:
+        if param.annotation not in default.allowed_types:
             raise FalconApiConfigError(
-                f"Parameter {param.name} has unsupported type annotation {param.annotation}, "
-                f"possible types are {allowed_param_types}"
+                f"{default.kind.capitalize()} parameter {param.name} has unsupported type "
+                f"annotation {param.annotation}, possible types are {default.allowed_types}"
             )
         param_input = OperationApiParamInput(
             name=param_name,
             annotation=param.annotation,
             info=default.field_info,
         )
-        if default.type == "header":
+        if default.kind == ParamKind.HEADER:
             header_params.append(param_input)
-        elif default.type == "path":
+        elif default.kind == ParamKind.PATH:
             path_params.append(param_input)
-        elif default.type == "query":
+        elif default.kind == ParamKind.QUERY:
             query_params.append(param_input)
         else:
             raise FalconApiConfigError(f"Unexpected error, cannot handle {type(param.default)}")

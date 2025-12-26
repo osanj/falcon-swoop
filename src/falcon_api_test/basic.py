@@ -1,7 +1,7 @@
 import pytest
 from pydantic import BaseModel
 
-from falcon_api import ApiBaseResource, operation, ApiQueryParam, ApiPathParam
+from falcon_api import ApiBaseResource, operation, query_param, path_param
 from falcon_api_test.util import SimulatedResource
 
 
@@ -21,8 +21,8 @@ class BasicResource(ApiBaseResource):
     @operation(method="GET")
     def get_something(
         self,
-        limit: int = ApiQueryParam(default=10, ge=1, le=20),
-        offset: int = ApiQueryParam(ge=0),
+        limit: int = query_param(default=10, ge=1, le=20),
+        offset: int = query_param(ge=0),
     ) -> BasicOutput:
         return BasicOutput(param1=f"limit={limit}&offset={offset}")
 
@@ -39,8 +39,8 @@ class BasicResourceWithPath(ApiBaseResource):
     @operation(method="GET")
     def get_post(
         self,
-        country: str = ApiPathParam(pattern=r"^[A-Z]{2}$"),
-        city_id: int = ApiPathParam(alias="cityId", ge=1),
+        country: str = path_param(pattern=r"^[A-Z]{2}$"),
+        city_id: int = path_param(alias="cityId", ge=1),
     ) -> BasicOutput:
         return BasicOutput(param1=f"country={country}&city={city_id}")
 

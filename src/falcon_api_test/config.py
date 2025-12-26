@@ -1,7 +1,7 @@
 import pytest
 from pydantic import BaseModel
 
-from falcon_api import ApiBaseResource, operation, FalconApiConfigError, ApiPathParam
+from falcon_api import ApiBaseResource, operation, FalconApiConfigError, path_param, query_param
 
 
 class DummyModel(BaseModel):
@@ -51,7 +51,7 @@ def test_config_error_for_mismatching_path_parameters() -> None:
 
     class ResourceWithPathParam(ApiBaseResource):
         @operation(method="GET")
-        def get(self, item_id: str = ApiPathParam()) -> DummyModel:
+        def get(self, item_id: str = path_param()) -> DummyModel:
             return DummyModel()
 
     with pytest.raises(FalconApiConfigError, match=exp_msg):
@@ -59,7 +59,7 @@ def test_config_error_for_mismatching_path_parameters() -> None:
 
     class ResourceWithBadPathParam(ApiBaseResource):
         @operation(method="GET")
-        def get(self, id_of_item: str = ApiPathParam()) -> DummyModel:
+        def get(self, id_of_item: str = path_param()) -> DummyModel:
             return DummyModel()
 
     with pytest.raises(FalconApiConfigError, match=exp_msg):
@@ -71,7 +71,7 @@ def test_config_error_for_mismatching_path_parameter_with_alias() -> None:
 
     class Resource(ApiBaseResource):
         @operation(method="GET")
-        def get(self, item_id: str = ApiPathParam()) -> DummyModel:
+        def get(self, item_id: str = path_param()) -> DummyModel:
             return DummyModel()
 
     with pytest.raises(FalconApiConfigError):
@@ -79,7 +79,16 @@ def test_config_error_for_mismatching_path_parameter_with_alias() -> None:
 
     class ResourceWithAlias(ApiBaseResource):
         @operation(method="GET")
-        def get(self, item_id: str = ApiPathParam(alias="itemId")) -> DummyModel:
+        def get(self, item_id: str = path_param(alias="itemId")) -> DummyModel:
             return DummyModel()
 
     ResourceWithAlias(route)
+
+
+def test_config_error_for_complex_param_type() -> None:
+    with pytest.raises(FalconApiConfigError, match="Query parameter query_params has unsupported type annotation"):
+
+        class Resource(ApiBaseResource):
+            @operation(method="GET")
+            def get(self, query_params: dict[str, int] = query_param()) -> DummyModel:
+                return DummyModel()
