@@ -1,11 +1,13 @@
 import collections
 from dataclasses import dataclass
+from typing import Any
 
 import falcon
 from pydantic import BaseModel, ValidationError
 
 from falcon_api.error import FalconApiConfigError
 from falcon_api.operation import ATTR_OPERATION, T_METHOD, OperationInfo
+from falcon_api.route import ApiRoute
 
 
 @dataclass
@@ -17,7 +19,7 @@ class RequestContext:
 class ApiBaseResource:
 
     def __init__(self, route: str, tag: str | None = None):
-        self.route = route
+        self.route = ApiRoute(route)
         self.tag = tag
         self.__context: RequestContext | None = None
         self.__operations = self.__setup()
@@ -44,7 +46,26 @@ class ApiBaseResource:
         if len(operations_by_method) == 0:
             raise FalconApiConfigError("Found no operation, at least one is required")
 
-        return {method: ops[0] for method, ops in operations_by_method.items()}
+        operation_by_method = {method: ops[0] for method, ops in operations_by_method.items()}
+
+        path_param_exp = self.route.param_names
+        for method, op in operation_by_method.items():
+            path_param_act = set()
+            if op.path_input is not None:
+                path_param_act = set(
+                    [name if info.alias is None else info.alias for name, info in op.path_input.model_fields.items()]
+                )
+
+            missing = path_param_exp.difference(path_param_act)
+            too_much = path_param_act.difference(path_param_exp)
+            if len(missing) > 0 or len(too_much) > 0:
+                raise FalconApiConfigError(
+                    f"Found mismatch for path parameters defined for operation {method}\n"
+                    f"missing parameters: {missing}\n"
+                    f"additional parameters: {too_much}"
+                )
+
+        return operation_by_method
 
     @property
     def ctx(self) -> RequestContext:
@@ -52,7 +73,12 @@ class ApiBaseResource:
             raise RuntimeError("No active request, so no context is available")
         return self.__context
 
-    def __on_request(self, req: falcon.Request, resp: falcon.Response) -> None:
+    def __on_request(
+        self,
+        req: falcon.Request,
+        resp: falcon.Response,
+        **path_params: Any,
+    ) -> None:
         op: OperationInfo | None = self.__operations.get(req.method)
         if op is None:
             op_keys = self.__operations.keys()
@@ -66,7 +92,14 @@ class ApiBaseResource:
                 query_data: BaseModel = op.query_input(**req.params)
             except ValidationError as e:
                 raise falcon.HTTPBadRequest(description=str(e))
-            kwargs.update(query_data.model_dump(by_alias=True))
+            kwargs.update(query_data.model_dump(by_alias=False))
+
+        if op.path_input is not None:
+            try:
+                path_data: BaseModel = op.path_input(**path_params)
+            except ValidationError as e:
+                raise falcon.HTTPBadRequest(description=str(e))
+            kwargs.update(path_data.model_dump(by_alias=False))
 
         if op.func_input is not None:
             data = op.func_input.model(**req.get_media())
@@ -81,17 +114,17 @@ class ApiBaseResource:
 
         self.__context = None
 
-    def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
-        self.__on_request(req, resp)
+    def on_get(self, req: falcon.Request, resp: falcon.Response, **path_params: Any) -> None:
+        self.__on_request(req, resp, **path_params)
 
-    def on_post(self, req: falcon.Request, resp: falcon.Response) -> None:
-        self.__on_request(req, resp)
+    def on_post(self, req: falcon.Request, resp: falcon.Response, **path_params: Any) -> None:
+        self.__on_request(req, resp, **path_params)
 
-    def on_put(self, req: falcon.Request, resp: falcon.Response) -> None:
-        self.__on_request(req, resp)
+    def on_put(self, req: falcon.Request, resp: falcon.Response, **path_params: Any) -> None:
+        self.__on_request(req, resp, **path_params)
 
-    def on_patch(self, req: falcon.Request, resp: falcon.Response) -> None:
-        self.__on_request(req, resp)
+    def on_patch(self, req: falcon.Request, resp: falcon.Response, **path_params: Any) -> None:
+        self.__on_request(req, resp, **path_params)
 
-    def on_delete(self, req: falcon.Request, resp: falcon.Response) -> None:
-        self.__on_request(req, resp)
+    def on_delete(self, req: falcon.Request, resp: falcon.Response, **path_params: Any) -> None:
+        self.__on_request(req, resp, **path_params)

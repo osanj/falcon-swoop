@@ -42,12 +42,13 @@ class OperationInfo:
     func: Callable
     func_input: OperationApiModelInput | None
     query_input: type[T_MODEL] | None
+    path_input: type[T_MODEL] | None
     # allow raw input?
     # accept mime type?
     func_output_model: type[T_MODEL] | None
 
     header_params: list[OperationApiParamInput]
-    path_params: list[OperationApiParamInput]
+    # path_params: list[OperationApiParamInput]
     # query_params: list[OperationApiParamInput]
 
     docs: OperationDocs | None
@@ -129,9 +130,15 @@ def inspect_operation(
 
     query_input = None
     if len(query_params) > 0:
-        query_input = create_model(f"{operation_id}QueryParams", **{
-            qp.name: (qp.annotation, qp.info) for qp in query_params
-        })
+        query_input = create_model(
+            f"{operation_id}QueryParams", **{qp.name: (qp.annotation, qp.info) for qp in query_params}
+        )
+
+    path_input = None
+    if len(path_params) > 0:
+        path_input = create_model(
+            f"{operation_id}PathParams", **{qp.name: (qp.annotation, qp.info) for qp in path_params}
+        )
 
     return OperationInfo(
         method=method,
@@ -141,8 +148,8 @@ def inspect_operation(
         func_input=op_input,
         func_output_model=t_output,
         query_input=query_input,
+        path_input=path_input,
         header_params=header_params,
-        path_params=path_params,
         docs=docs,
     )
 

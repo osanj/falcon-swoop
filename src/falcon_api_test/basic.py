@@ -1,7 +1,7 @@
 import pytest
 from pydantic import BaseModel
 
-from falcon_api import ApiBaseResource, operation, ApiQueryParam
+from falcon_api import ApiBaseResource, operation, ApiQueryParam, ApiPathParam
 from falcon_api_test.util import SimulatedResource
 
 
@@ -31,9 +31,28 @@ class BasicResource(ApiBaseResource):
         return BasicOutput(param1=basic_input.param1)
 
 
+class BasicResourceWithPath(ApiBaseResource):
+
+    def __init__(self):
+        super().__init__("/country/{country}/city/{cityId}")
+
+    @operation(method="GET")
+    def get_post(
+        self,
+        country: str = ApiPathParam(pattern=r"^[A-Z]{2}$"),
+        city_id: int = ApiPathParam(alias="cityId", ge=1),
+    ) -> BasicOutput:
+        return BasicOutput(param1=f"country={country}&city={city_id}")
+
+
 @pytest.fixture(scope="module")
 def resource() -> SimulatedResource:
     return SimulatedResource(BasicResource())
+
+
+@pytest.fixture(scope="module")
+def resource_with_path() -> SimulatedResource:
+    return SimulatedResource(BasicResourceWithPath())
 
 
 def test_missing_input_raises_400(resource: SimulatedResource) -> None:
@@ -59,3 +78,12 @@ def test_missing_query_param_raises_400(resource: SimulatedResource) -> None:
 def test_bad_query_param_raises_400(resource: SimulatedResource) -> None:
     resp = resource.simulate_get(params={"offset": 100, "limit": 100})
     assert resp.status_code == 400
+
+
+def test_bad_path_param_raises_400(resource_with_path: SimulatedResource) -> None:
+    route = resource_with_path.resource.route
+    resp = resource_with_path.simulate_get(path=route.format(country="fr", cityId=1))
+    assert resp.status_code == 400
+    resp3 = resource_with_path.simulate_get(path=route.format(country="FR", cityId=1))
+    assert resp3.status_code == 200
+    assert resp3.json["param1"] == "country=FR&city=1"
