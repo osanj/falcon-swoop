@@ -1,7 +1,7 @@
 import inspect
-from dataclasses import dataclass
-from typing import Any, Callable, Literal, NotRequired, Sequence, TypedDict
-from typing_extensions import Unpack
+from dataclasses import dataclass, field as dataclass_field
+from typing import Any, Callable, Literal, NotRequired, TypedDict
+from typing_extensions import Self, Unpack
 
 from pydantic import create_model, BaseModel
 from pydantic.fields import FieldInfo
@@ -16,33 +16,57 @@ ATTR_OPERATION = "operation"
 
 
 @dataclass
-class OperationApiModelInput:
+class OpApiModelInput:
     name: str
-    model: type[BaseModel]
+    model_type: type[BaseModel]
+    optional: bool = False
 
 
 @dataclass
-class OperationApiParamInput:
+class OpApiParamInput:
     name: str
     annotation: type[bool | int | float | str]
     info: FieldInfo
+    optional: bool = False
+
+
+OpExample = BaseModel | dict[str, Any] | str
+OpType = type[BaseModel] | None
 
 
 @dataclass
-class OperationDocs:
-    pass
+class OpTypeDoc:
+    model_type: OpType = None
+    examples: dict[str, OpExample] = dataclass_field(default_factory=dict)
+
+    @classmethod
+    def with_default_example(cls, model_type: OpType = None, example: OpExample | None = None) -> Self:
+        examples = {} if example is None else {"default": example}
+        return cls(model_type=model_type, examples=examples)
 
 
 @dataclass
-class OperationInfo:
-    method: HttpMethod
-    operation_id: str
-    tags: list[str]
-    accept: list[MimeType]
-    deprecated: bool
+class OpRequestDoc:
+    required: bool
+    by_mime: dict[str, OpTypeDoc]
 
-    func: Callable[..., Any]
-    func_input: OperationApiModelInput | None
+
+@dataclass
+class OpResponseDoc:
+    description: str
+    by_mime: dict[str, OpTypeDoc]
+
+    # def __post_init__(self) -> None:
+    #     if len(self.by_mime) == 0:
+    #         raise FalconApiConfigError("At least one mime response type needs to be specified")
+
+
+OpResponseDocByHttpCode = dict[int, OpResponseDoc]
+
+
+@dataclass
+class OpFuncSpec:
+    func_input: OpApiModelInput | None
     query_input: type[BaseModel] | None
     path_input: type[BaseModel] | None
     header_input: type[BaseModel] | None
@@ -50,11 +74,29 @@ class OperationInfo:
     # accept mime type?
     func_output_model: type[BaseModel] | None
 
-    docs: OperationDocs | None
+
+@dataclass
+class OpInfo:
+    method: HttpMethod
+    operation_id: str
+    tags: list[str]
+    deprecated: bool
+    request_doc: OpRequestDoc | None
+    response_docs: OpResponseDocByHttpCode
+    # accept: list[MimeType]
+    # http_status_code: int
+    # http_description: str
+
+    func: Callable[..., Any]
 
     @property
     def func_name(self) -> str:
         return self.func.__name__
+
+
+@dataclass
+class OpInfoWithSpec(OpInfo):
+    func_spec: OpFuncSpec
 
 
 def find_params(
@@ -81,7 +123,7 @@ def find_params(
                 f"{default.kind.capitalize()} parameter {param.name} has unsupported type "
                 f"annotation {param.annotation}, possible types are {default.allowed_types}"
             )
-        param_input = OperationApiParamInput(
+        param_input = OpApiParamInput(
             name=param_name,
             annotation=param.annotation,
             info=default.field_info,
@@ -101,22 +143,32 @@ def find_params(
 
 
 class OperationKwArgs(TypedDict):
-    operation_id: NotRequired[str | None]
+    operation_id: NotRequired[str]
     tags: NotRequired[list[str]]
     accept: NotRequired[list[MimeType]]
-    docs: NotRequired[OperationDocs | None]
     deprecated: NotRequired[bool]
+    default_status: NotRequired[int | tuple[int, str]]
+    default_request_example: NotRequired[OpExample]
+    default_response_example: NotRequired[OpExample]
+    more_response_docs: NotRequired[OpResponseDocByHttpCode]
 
 
-def inspect_operation(method: HttpMethod, func: Callable[..., Any], **kwargs: Unpack[OperationKwArgs]) -> OperationInfo:
+def get_operation_id_or_default(operation_id: str | None, func: Callable[..., Any]) -> str:
+    if operation_id is not None:
+        return operation_id
+    func_name_parts = func.__name__.split("_")
+    return "".join([func_name_parts[0]] + [p.capitalize() for p in func_name_parts[1:]])
+
+
+def inspect_operation(
+    method: HttpMethod,
+    func: Callable[..., Any],
+    **kwargs: Unpack[OperationKwArgs],
+) -> OpInfoWithSpec:
     signature = inspect.signature(func)
     op_input = None
-    t_output = None
-
-    operation_id = kwargs.get("operation_id")
-    if operation_id is None:
-        func_name_parts = func.__name__.split("_")
-        operation_id = "".join([func_name_parts[0]] + [p.capitalize() for p in func_name_parts[1:]])
+    op_output_type = None
+    operation_id = get_operation_id_or_default(kwargs.get("operation_id"), func)
 
     input_params = signature.parameters.keys() - {"self"}
 
@@ -131,56 +183,75 @@ def inspect_operation(method: HttpMethod, func: Callable[..., Any], **kwargs: Un
         param_type = param.annotation
         if not issubclass(param_type, BaseModel):
             raise FalconApiConfigError(f"Parameter type of {param.name} needs to be a subclass of {BaseModel.__name__}")
-        op_input = OperationApiModelInput(param.name, param_type)
+        op_input = OpApiModelInput(param.name, param_type)
     elif len(input_params) > 1:
         raise FalconApiConfigError("More than 1 parameter found")
 
     if signature.return_annotation not in (signature.empty, None):
         if not issubclass(signature.return_annotation, BaseModel):
             raise FalconApiConfigError(f"Return type needs to be a subclass of {BaseModel.__name__}")
-        t_output = signature.return_annotation
+        op_output_type = signature.return_annotation
 
-    default_accept: list[MimeType] = ["application/json"]
-    return OperationInfo(
+    # default_accept: list[MimeType] = ["application/json"]
+    # accept=kwargs.get("accept", default_accept),
+    request_doc: OpRequestDoc | None = None
+    if op_input is not None:
+        request_doc = OpRequestDoc(
+            required=not op_input.optional,
+            by_mime={
+                "application/json": OpTypeDoc.with_default_example(
+                    model_type=op_input.model_type,
+                    example=kwargs.get("default_request_example"),
+                )
+            },
+        )
+
+    resp_status: int = 200
+    resp_desc: str = "ok"
+    match kwargs.get("default_status", (resp_status, resp_desc)):
+        case int(status):
+            resp_status = status
+        case (int(status), str(desc)):
+            resp_status = status
+            resp_desc = desc
+        case _:
+            raise ValueError("Could not match default status input")
+    response_type_by_mime = {}
+    if op_output_type is not None:
+        response_type_by_mime["application/json"] = OpTypeDoc.with_default_example(
+            model_type=op_output_type,
+            example=kwargs.get("default_response_example"),
+        )
+    response_docs = {resp_status: OpResponseDoc(description=resp_desc, by_mime=response_type_by_mime)}
+    more_response_docs = kwargs.get("more_response_docs", {})
+    if resp_status in more_response_docs:
+        raise FalconApiConfigError(
+            f"Response docs for default HTTP status code {resp_status} are generated, cannot be provided"
+        )
+    response_docs.update(more_response_docs)
+
+    return OpInfoWithSpec(
         method=method,
         operation_id=operation_id,
         tags=kwargs.get("tags", []),
-        accept=kwargs.get("accept", default_accept),
         deprecated=kwargs.get("deprecated", False),
+        request_doc=request_doc,
+        response_docs=response_docs,
         func=func,
-        func_input=op_input,
-        func_output_model=t_output,
-        query_input=query_input,
-        path_input=path_input,
-        header_input=header_input,
-        docs=kwargs.get("docs"),
+        func_spec=OpFuncSpec(
+            func_input=op_input,
+            func_output_model=op_output_type,
+            query_input=query_input,
+            path_input=path_input,
+            header_input=header_input,
+        ),
     )
 
 
-def inspect_operation_doc(
-    func: Callable[..., Any],
-) -> OperationDocs:
-    func_name_method_mapping: dict[str, HttpMethod] = {
-        "on_get": "GET",
-        "on_post": "POST",
-    }
-
-    method = func_name_method_mapping.get(func.__name__)
-    if method is None:
-        raise FalconApiConfigError(
-            f"The annotated method needs to have one of "
-            f"the typical request methods: {', '.join(func_name_method_mapping.keys())}"
-        )
-
-    return OperationDocs()
-
-
-def operation(
-    method: HttpMethod,
-    **kwargs: Unpack[OperationKwArgs],
-) -> Callable[..., Any]:
+def operation(method: HttpMethod, **kwargs: Unpack[OperationKwArgs]) -> Callable[..., Any]:
     """
     Decorator for API operations.
+    :param method: HTTP method required in request
     :param operation_id: specific openAPI operation id, if not provided the camelCased function name will be used
     :param deprecated: flag to mark the operation as deprecated in the openapi docs (default: False)
     """
@@ -193,16 +264,54 @@ def operation(
     return wrap
 
 
-def operation_doc(
-    operation_id: str | None = None,
-    docs: OperationDocs | None = None,
-) -> Callable[..., Any]:
+class OperationDocKwArgs(TypedDict):
+    operation_id: NotRequired[str]
+    tags: NotRequired[list[str]]
+    accept: NotRequired[list[MimeType]]
+    deprecated: NotRequired[bool]
+    request_doc: NotRequired[OpRequestDoc]
+    response_docs: NotRequired[OpResponseDocByHttpCode]
+
+
+def inspect_operation_doc(
+    func: Callable[..., Any],
+    **kwargs: Unpack[OperationDocKwArgs],
+) -> OpInfo:
+    operation_id = get_operation_id_or_default(kwargs.get("operation_id"), func)
+    func_name_method_mapping: dict[str, HttpMethod] = {
+        "on_get": "GET",
+        "on_post": "POST",
+        "on_put": "PUT",
+        "on_patch": "PATCH",
+        "on_delete": "DELETE",
+    }
+
+    method = func_name_method_mapping.get(func.__name__)
+    if method is None:
+        raise FalconApiConfigError(
+            f"The annotated method needs to have one of "
+            f"the falcon request methods: {', '.join(func_name_method_mapping.keys())}"
+        )
+
+    return OpInfo(
+        method=method,
+        operation_id=operation_id,
+        tags=kwargs.get("tags", []),
+        deprecated=kwargs.get("deprecated", False),
+        request_doc=kwargs.get("request_doc"),
+        response_docs=kwargs.get("response_docs", {}),
+        func=func,
+    )
+
+
+def operation_doc(**kwargs: Unpack[OperationDocKwArgs]) -> Callable[..., Any]:
     """
     ...
     """
 
     def wrap(func: Callable[..., Any]) -> Callable[..., Any]:
-        inspect_operation_doc(func)
+        info = inspect_operation_doc(func, **kwargs)
+        setattr(func, ATTR_OPERATION, info)
         return func
 
     return wrap

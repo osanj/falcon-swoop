@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Final, Sequence
+from typing import Any, Final, Sequence
 
 from pydantic import BaseModel, create_model
 
@@ -9,16 +9,25 @@ from falcon_api.openapi.spec import (
     JsonSchema,
     OpenApiComponents,
     OpenApiDocument,
+    OpenApiExample,
     OpenApiInfo,
     OpenApiMediaType,
     OpenApiMimeType,
-    OpenApiPathItem,
     OpenApiOperation,
+    OpenApiPathItem,
     OpenApiReference,
     OpenApiRequestBody,
     OpenApiResponse,
 )
-from falcon_api.operation import HttpMethod, OperationInfo
+from falcon_api.operation import (
+    HttpMethod,
+    OpInfo,
+    OpResponseDoc,
+    OpRequestDoc,
+    OpExample,
+    OpType,
+    OpTypeDoc,
+)
 
 
 @dataclass
@@ -78,29 +87,45 @@ class OpenApiGenerator:
             description=description,
         )
 
-    def map_operation_info(self, op_info: OperationInfo) -> OpenApiOperation:
+    def map_schema(self, op_type: OpType) -> OpenApiReference | JsonSchema | None:
+        if op_type is None:
+            return None
+        return self.__model_collector.get_reference(op_type)
+
+    def map_example(self, example: OpExample) -> OpenApiExample:
+        value: dict[str, Any] | str
+        if isinstance(example, BaseModel):
+            value = example.model_dump(by_alias=True, mode="json")
+        else:
+            value = example
+        return OpenApiExample(value=value)
+
+    def map_media_type(self, type_doc: OpTypeDoc) -> OpenApiMediaType:
+        return OpenApiMediaType(
+            schema_=self.map_schema(type_doc.model_type),
+            examples={name: self.map_example(example) for name, example in type_doc.examples.items()},
+        )
+
+    def map_request_doc(self, rd: OpRequestDoc) -> OpenApiRequestBody | None:
+        content = {}
+        for mime, resp_type in rd.by_mime.items():
+            content[OpenApiMimeType(mime)] = self.map_media_type(resp_type)
+        return OpenApiRequestBody(required=rd.required, content=content)
+
+    def map_response_doc(self, rd: OpResponseDoc) -> OpenApiResponse:
+        content = {}
+        for mime, resp_type in rd.by_mime.items():
+            content[OpenApiMimeType(mime)] = self.map_media_type(resp_type)
+        return OpenApiResponse(description=rd.description, content=content)
+
+    def map_operation_info(self, op_info: OpInfo) -> OpenApiOperation:
         req_body: OpenApiRequestBody | None = None
-        if op_info.func_input is not None:
-            req_body = OpenApiRequestBody(
-                required=True,
-                content={
-                    OpenApiMimeType(mime): OpenApiMediaType(
-                        schema_=self.__model_collector.get_reference(op_info.func_input.model)
-                    )
-                    for mime in op_info.accept
-                },
-            )
+        if op_info.request_doc is not None:
+            req_body = self.map_request_doc(op_info.request_doc)
 
         responses = {}
-        if op_info.func_output_model is not None:
-            responses["200"] = OpenApiResponse(
-                description="success",
-                content={
-                    OpenApiMimeType.JSON: OpenApiMediaType(
-                        schema_=self.__model_collector.get_reference(op_info.func_output_model)
-                    )
-                },
-            )
+        for status_code, rd in op_info.response_docs.items():
+            responses[str(status_code)] = self.map_response_doc(rd)
 
         return OpenApiOperation(
             operationId=op_info.operation_id,

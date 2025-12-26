@@ -1,10 +1,11 @@
 import re
 from enum import Enum, unique
-from typing import Any, Dict, List, Literal
+from typing import Any, Literal
+from typing_extensions import Self
 
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, field_validator, model_validator
 
-JsonSchema = Dict[str, Any]
+JsonSchema = dict[str, Any]
 
 
 @unique
@@ -69,7 +70,7 @@ class OpenApiParameter(OpenApiSpecModel):
     # content is not supported for now
 
     @model_validator(mode="after")
-    def check_required_for_path(self) -> "OpenApiParameter":
+    def check_required_for_path(self) -> Self:
         """https://spec.openapis.org/oas/v3.1.0#fixed-fields-9"""
         if self.in_ == OpenApiParameterType.PATH and not self.required:
             raise ValueError("Path parameters must be required")
@@ -87,17 +88,33 @@ class OpenApiApiKeySecurityScheme(OpenApiSpecModel):
     )
 
 
+class OpenApiExample(OpenApiSpecModel):
+    """https://spec.openapis.org/oas/v3.1.0#example-object"""
+
+    summary: str | None = None
+    description: str | None = None
+    value: str | dict[str, Any] | None = None
+    external_value: str | None = Field(default=None, alias="externalValue")
+
+    @model_validator(mode="after")
+    def ensure_values_are_mutually_exclusive(self) -> Self:
+        if (self.value is None) == (self.external_value is None):
+            raise ValueError("Either value or external_value must be specified, they can't be both present or absent")
+        return self
+
+
 class OpenApiMediaType(OpenApiSpecModel):
     """https://spec.openapis.org/oas/v3.1.0#media-type-object"""
 
     schema_: OpenApiReference | JsonSchema | None = Field(default=None, alias="schema")
+    examples: dict[str, OpenApiExample] = Field(default_factory=dict)
 
 
 class OpenApiRequestBody(OpenApiSpecModel):
     """https://spec.openapis.org/oas/v3.1.0#request-body-object"""
 
     description: str | None = None
-    content: Dict[OpenApiMimeType, OpenApiMediaType]
+    content: dict[OpenApiMimeType, OpenApiMediaType]
     required: bool = False
 
 
@@ -105,26 +122,26 @@ class OpenApiResponse(OpenApiSpecModel):
     """https://spec.openapis.org/oas/v3.1.0#response-object"""
 
     description: str
-    content: Dict[OpenApiMimeType, OpenApiMediaType]
+    content: dict[OpenApiMimeType, OpenApiMediaType]
 
 
 class OpenApiOperation(OpenApiSpecModel):
     """https://spec.openapis.org/oas/v3.1.0#operation-object"""
 
-    tags: List[str] = []
+    tags: list[str] = []
     summary: str | None = None
     description: str | None = None
     external_docs: OpenApiExternalDocumentation | None = Field(default=None, alias="externalDocs")
     operation_id: str | None = Field(default=None, alias="operationId")
-    parameters: List[OpenApiParameter | OpenApiReference] = Field(default_factory=list)
+    parameters: list[OpenApiParameter | OpenApiReference] = Field(default_factory=list)
     request_body: OpenApiRequestBody | OpenApiReference | None = Field(default=None, alias="requestBody")
-    responses: Dict[str, OpenApiResponse | OpenApiReference]
-    security: List[Dict[str, List[str]]] | None = None  # emtpy array can be passed to remove top level requirements
+    responses: dict[str, OpenApiResponse | OpenApiReference]
+    security: list[dict[str, list[str]]] | None = None  # emtpy array can be passed to remove top level requirements
     deprecated: bool = False
 
     @field_validator("responses")
     @classmethod
-    def response_keys_are_http_status_codes(cls, responses: Dict[str, Any]) -> Dict[str, Any]:
+    def response_keys_are_http_status_codes(cls, responses: dict[str, Any]) -> dict[str, Any]:
         """https://spec.openapis.org/oas/v3.1.0#responses-object"""
         for status_code in responses:
             if not (status_code == "default" or re.fullmatch(r"[2-5]\d\d", status_code)):
@@ -145,7 +162,7 @@ class OpenApiPathItem(OpenApiSpecModel):
     head: OpenApiOperation | None = None
     patch: OpenApiOperation | None = None
     trace: OpenApiOperation | None = None
-    parameters: List[OpenApiParameter | OpenApiReference] = []
+    parameters: list[OpenApiParameter | OpenApiReference] = []
 
 
 class OpenApiTag(OpenApiSpecModel):
@@ -168,9 +185,9 @@ class OpenApiInfo(OpenApiSpecModel):
 class OpenApiComponents(OpenApiSpecModel):
     """https://spec.openapis.org/oas/v3.1.0#components-object"""
 
-    schemas: Dict[str, JsonSchema] = Field(default_factory=dict)
-    parameters: Dict[str, OpenApiParameter | OpenApiReference] = Field(default_factory=dict)
-    security_schemes: Dict[str, OpenApiApiKeySecurityScheme] = Field(alias="securitySchemes", default_factory=dict)
+    schemas: dict[str, JsonSchema] = Field(default_factory=dict)
+    parameters: dict[str, OpenApiParameter | OpenApiReference] = Field(default_factory=dict)
+    security_schemes: dict[str, OpenApiApiKeySecurityScheme] = Field(alias="securitySchemes", default_factory=dict)
 
 
 class OpenApiDocument(OpenApiSpecModel):
@@ -180,15 +197,15 @@ class OpenApiDocument(OpenApiSpecModel):
 
     openapi: str = "3.1.0"
     info: OpenApiInfo
-    paths: Dict[str, OpenApiPathItem] = {}
+    paths: dict[str, OpenApiPathItem] = {}
     components: OpenApiComponents = Field(default_factory=OpenApiComponents)
-    security: List[Dict[str, List[str]]] | None = None
-    tags: List[OpenApiTag] = []
+    security: list[dict[str, list[str]]] | None = None
+    tags: list[OpenApiTag] = []
     external_docs: OpenApiExternalDocumentation | None = Field(default=None, alias="externalDocs")
 
     @field_validator("paths")
     @classmethod
-    def paths_need_to_start_with_slash(cls, paths: Dict[str, Any]) -> Dict[str, Any]:
+    def paths_need_to_start_with_slash(cls, paths: dict[str, Any]) -> dict[str, Any]:
         """https://spec.openapis.org/oas/v3.1.0#paths-object"""
         for path in paths:
             if not path.startswith("/"):

@@ -7,7 +7,7 @@ import falcon
 from pydantic import BaseModel, ValidationError
 
 from falcon_api.error import FalconApiConfigError
-from falcon_api.operation import ATTR_OPERATION, HttpMethod, OperationInfo
+from falcon_api.operation import ATTR_OPERATION, HttpMethod, OpInfo, OpInfoWithSpec
 from falcon_api.route import ApiRoute
 
 
@@ -24,13 +24,13 @@ class ApiBaseResource:
         self.__context: RequestContext | None = None
         self.__operation_by_method = self.__setup()
 
-    def api_ops(self) -> Generator[OperationInfo, None, None]:
+    def api_ops(self) -> Generator[OpInfo, None, None]:
         for op in self.__operation_by_method.values():
             yield op
 
     def __check_operation_config(
-        self, operations_by_method: dict[HttpMethod, list[OperationInfo]]
-    ) -> dict[HttpMethod, OperationInfo]:
+        self, operations_by_method: dict[HttpMethod, list[OpInfo]]
+    ) -> dict[HttpMethod, OpInfo]:
         for method, ops in operations_by_method.items():
             if len(ops) > 1:
                 names = ", ".join([op.func_name for op in ops])
@@ -41,13 +41,16 @@ class ApiBaseResource:
 
         return {method: ops[0] for method, ops in operations_by_method.items()}
 
-    def __check_path_parameter_match(self, operation_by_method: dict[HttpMethod, OperationInfo]) -> None:
+    def __check_path_parameter_match(self, operation_by_method: dict[HttpMethod, OpInfo]) -> None:
         path_param_exp = self.api_route.param_names
         for method, op in operation_by_method.items():
+            if not isinstance(op, OpInfoWithSpec):
+                continue
             path_param_act = set()
-            if op.path_input is not None:
+            path_input = op.func_spec.path_input
+            if path_input is not None:
                 path_param_act = set(
-                    [name if info.alias is None else info.alias for name, info in op.path_input.model_fields.items()]
+                    [name if info.alias is None else info.alias for name, info in path_input.model_fields.items()]
                 )
 
             missing = path_param_exp.difference(path_param_act)
@@ -59,8 +62,8 @@ class ApiBaseResource:
                     f"additional parameters: {too_much}"
                 )
 
-    def __setup(self) -> dict[HttpMethod, OperationInfo]:
-        operations_by_method: dict[HttpMethod, list[OperationInfo]] = collections.defaultdict(list)
+    def __setup(self) -> dict[HttpMethod, OpInfo]:
+        operations_by_method: dict[HttpMethod, list[OpInfo]] = collections.defaultdict(list)
 
         for name in dir(self):
             if name.startswith("__"):
@@ -70,7 +73,7 @@ class ApiBaseResource:
             except:
                 continue
             operation_info = getattr(item, ATTR_OPERATION, None)
-            if isinstance(operation_info, OperationInfo):
+            if isinstance(operation_info, OpInfo):
                 operations_by_method[operation_info.method].append(operation_info)
 
         operation_by_method = self.__check_operation_config(operations_by_method)
@@ -112,20 +115,24 @@ class ApiBaseResource:
         resp: falcon.Response,
         **path_params: Any,
     ) -> None:
-        op: OperationInfo | None = self.__operation_by_method.get(method)
+        op: OpInfo | None = self.__operation_by_method.get(method)
+        if op is not None and not isinstance(op, OpInfoWithSpec):
+            raise ValueError(f"Expected object of subtype {OpInfoWithSpec.__name__}")
         if op is None:
             op_keys = self.__operation_by_method.keys()
             raise falcon.HTTPMethodNotAllowed(op_keys)
+
         self.__context = RequestContext(req, resp)
 
+        spec = op.func_spec
         kwargs = {}
-        kwargs.update(self.__collect_typed_kwargs(req.params, op.query_input))
-        kwargs.update(self.__collect_typed_kwargs(path_params, op.path_input))
-        kwargs.update(self.__collect_typed_kwargs(req.headers, op.header_input, case_sensitive=False))
+        kwargs.update(self.__collect_typed_kwargs(req.params, spec.query_input))
+        kwargs.update(self.__collect_typed_kwargs(path_params, spec.path_input))
+        kwargs.update(self.__collect_typed_kwargs(req.headers, spec.header_input, case_sensitive=False))
 
-        if op.func_input is not None:
-            data = op.func_input.model(**req.get_media())
-            kwargs[op.func_input.name] = data
+        if spec.func_input is not None:
+            data = spec.func_input.model_type(**req.get_media())
+            kwargs[spec.func_input.name] = data
 
         data_output = op.func(self, **kwargs)
         if data_output is not None:
