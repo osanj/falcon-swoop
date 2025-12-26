@@ -1,12 +1,13 @@
 import collections
+import warnings
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Mapping
 
 import falcon
 from pydantic import BaseModel, ValidationError
 
 from falcon_api.error import FalconApiConfigError
-from falcon_api.operation import ATTR_OPERATION, HttpMethod, OperationInfo
+from falcon_api.operation import ATTR_OPERATION, OperationInfo
 from falcon_api.route import ApiRoute
 
 
@@ -79,6 +80,28 @@ class ApiBaseResource:
             raise RuntimeError("No active request, so no context is available")
         return self.__context
 
+    def __collect_typed_kwargs(
+        self, input_kwargs: Mapping[str, Any], model_type: type[BaseModel] | None, case_sensitive: bool = True
+    ) -> dict[str, Any]:
+        if model_type is None:
+            return {}
+        if not case_sensitive:
+            _input_kwargs = {k.lower(): v for k, v in input_kwargs.items()}
+            if len(_input_kwargs) != len(input_kwargs):
+                warnings.warn("Unexpectedly lost data due to lowercasing")
+            _input_kwargs2 = {}
+            for name, info in model_type.model_fields.items():
+                input_name: str = info.alias or name
+                input_name_lowered = input_name.lower()
+                if input_name_lowered in _input_kwargs:
+                    _input_kwargs2[input_name] = _input_kwargs[input_name_lowered]
+            input_kwargs = _input_kwargs2
+        try:
+            model: BaseModel = model_type(**input_kwargs)
+        except ValidationError as e:
+            raise falcon.HTTPBadRequest(description=str(e))
+        return model.model_dump(by_alias=False)
+
     def __on_request(
         self,
         req: falcon.Request,
@@ -92,20 +115,9 @@ class ApiBaseResource:
         self.__context = RequestContext(req, resp)
 
         kwargs = {}
-
-        if op.query_input is not None:
-            try:
-                query_data: BaseModel = op.query_input(**req.params)
-            except ValidationError as e:
-                raise falcon.HTTPBadRequest(description=str(e))
-            kwargs.update(query_data.model_dump(by_alias=False))
-
-        if op.path_input is not None:
-            try:
-                path_data: BaseModel = op.path_input(**path_params)
-            except ValidationError as e:
-                raise falcon.HTTPBadRequest(description=str(e))
-            kwargs.update(path_data.model_dump(by_alias=False))
+        kwargs.update(self.__collect_typed_kwargs(req.params, op.query_input))
+        kwargs.update(self.__collect_typed_kwargs(path_params, op.path_input))
+        kwargs.update(self.__collect_typed_kwargs(req.headers, op.header_input, case_sensitive=False))
 
         if op.func_input is not None:
             data = op.func_input.model(**req.get_media())

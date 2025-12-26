@@ -1,7 +1,9 @@
+from typing import Any
+
 import pytest
 from pydantic import BaseModel
 
-from falcon_api import ApiBaseResource, operation, query_param, path_param
+from falcon_api import ApiBaseResource, operation, header_param, query_param, path_param
 from falcon_api_test.util import SimulatedResource
 
 
@@ -10,7 +12,7 @@ class BasicInput(BaseModel):
 
 
 class BasicOutput(BaseModel):
-    param1: str
+    data: dict[str, Any]
 
 
 class BasicResource(ApiBaseResource):
@@ -24,11 +26,11 @@ class BasicResource(ApiBaseResource):
         limit: int = query_param(default=10, ge=1, le=20),
         offset: int = query_param(ge=0),
     ) -> BasicOutput:
-        return BasicOutput(param1=f"limit={limit}&offset={offset}")
+        return BasicOutput(data={"limit": limit, "offset": offset})
 
     @operation(method="POST")
     def post_something(self, basic_input: BasicInput) -> BasicOutput:
-        return BasicOutput(param1=basic_input.param1)
+        return BasicOutput(data={"param1": basic_input.param1})
 
 
 class BasicResourceWithPath(ApiBaseResource):
@@ -41,8 +43,9 @@ class BasicResourceWithPath(ApiBaseResource):
         self,
         country: str = path_param(pattern=r"^[A-Z]{2}$"),
         city_id: int = path_param(alias="cityId", ge=1),
+        api_key: str = header_param(default="dummy", alias="X-API-KEY"),
     ) -> BasicOutput:
-        return BasicOutput(param1=f"country={country}&city={city_id}")
+        return BasicOutput(data={"country": country, "city": city_id, "api_key": api_key})
 
 
 @pytest.fixture(scope="module")
@@ -72,7 +75,7 @@ def test_missing_query_param_raises_400(resource: SimulatedResource) -> None:
     assert resp.status_code == 400
     resp2 = resource.simulate_get(params={"offset": 100})
     assert resp2.status_code == 200
-    assert resp2.json["param1"] == "limit=10&offset=100"
+    assert resp2.json["data"] == {"limit": 10, "offset": 100}
 
 
 def test_bad_query_param_raises_400(resource: SimulatedResource) -> None:
@@ -86,4 +89,19 @@ def test_bad_path_param_raises_400(resource_with_path: SimulatedResource) -> Non
     assert resp.status_code == 400
     resp3 = resource_with_path.simulate_get(path=route.format(country="FR", cityId=1))
     assert resp3.status_code == 200
-    assert resp3.json["param1"] == "country=FR&city=1"
+    assert resp3.json["data"]["country"] == "FR"
+    assert resp3.json["data"]["city"] == 1
+
+
+def test_header_parameters_are_case_insensitive(resource_with_path: SimulatedResource) -> None:
+    path = resource_with_path.resource.route.format(country="FR", cityId=1)
+    expected_header_value = "not-dummy"
+
+    resp0 = resource_with_path.simulate_get(path=path)
+    assert resp0.status_code == 200
+    assert resp0.json["data"]["api_key"] != expected_header_value
+
+    for header in ["X-API-KEY", "x-api-key", "X-ApI-kEy"]:
+        resp0 = resource_with_path.simulate_get(path=path, headers={header: expected_header_value})
+        assert resp0.status_code == 200
+        assert resp0.json["data"]["api_key"] == expected_header_value

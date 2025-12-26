@@ -42,13 +42,10 @@ class OperationInfo:
     func_input: OperationApiModelInput | None
     query_input: type[BaseModel] | None
     path_input: type[BaseModel] | None
+    header_input: type[BaseModel] | None
     # allow raw input?
     # accept mime type?
     func_output_model: type[BaseModel] | None
-
-    header_params: list[OperationApiParamInput]
-    # path_params: list[OperationApiParamInput]
-    # query_params: list[OperationApiParamInput]
 
     docs: OperationDocs | None
 
@@ -57,30 +54,20 @@ class OperationInfo:
         return self.func.__name__
 
 
-def inspect_operation(
-    func: Callable[..., Any],
-    method: HttpMethod,
-    operation_id: str | None = None,
-    accept: Sequence[MimeType] = ("application/json",),
-    docs: OperationDocs | None = None,
-) -> OperationInfo:
-    signature = inspect.signature(func)
-    op_input = None
-    t_output = None
+def find_params(
+    signature: inspect.Signature, param_names: set[str], kind: ParamKind, operation_id: str
+) -> tuple[type[BaseModel] | None, set[str]]:
+    param_inputs = []
 
-    header_params: list[OperationApiParamInput] = []
-    path_params: list[OperationApiParamInput] = []
-    query_params: list[OperationApiParamInput] = []
-
-    input_params = signature.parameters.keys() - {"self"}
-    used_param_names = []
-    for param_name in input_params:
+    for param_name in param_names:
         param = signature.parameters[param_name]
         if param.default is None or param.default == signature.empty:
             continue
         if not isinstance(param.default, Param):
             continue
         default: Param = param.default
+        if default.kind != kind:
+            continue
         if param.annotation is None:
             raise FalconApiConfigError(
                 f"{default.kind.capitalize()} parameter {param.name} requires type annotation, "
@@ -96,17 +83,42 @@ def inspect_operation(
             annotation=param.annotation,
             info=default.field_info,
         )
-        if default.kind == ParamKind.HEADER:
-            header_params.append(param_input)
-        elif default.kind == ParamKind.PATH:
-            path_params.append(param_input)
-        elif default.kind == ParamKind.QUERY:
-            query_params.append(param_input)
-        else:
-            raise FalconApiConfigError(f"Unexpected error, cannot handle {type(param.default)}")
-        used_param_names.append(param_name)
+        param_inputs.append(param_input)
 
-    input_params = input_params.difference(set(used_param_names))
+    if len(param_inputs) == 0:
+        return None, set()
+
+    # TODO: add warning for header parameters that seem to imply case sensitivity
+    used_param_names = {pi.name for pi in param_inputs}
+    param_model_name = f"{operation_id}{kind.lower().capitalize()}Params"
+    param_type = create_model(
+        param_model_name, **{pi.name: (pi.annotation, pi.info) for pi in param_inputs}
+    )  # type: ignore[call-overload]
+    return param_type, used_param_names
+
+
+def inspect_operation(
+    func: Callable[..., Any],
+    method: HttpMethod,
+    operation_id: str | None = None,
+    accept: Sequence[MimeType] = ("application/json",),
+    docs: OperationDocs | None = None,
+) -> OperationInfo:
+    signature = inspect.signature(func)
+    op_input = None
+    t_output = None
+
+    if operation_id is None:
+        func_name_parts = func.__name__.split("_")
+        operation_id = "".join([func_name_parts[0]] + [p.capitalize() for p in func_name_parts[1:]])
+
+    input_params = signature.parameters.keys() - {"self"}
+
+    header_input, header_params = find_params(signature, input_params, ParamKind.HEADER, operation_id)
+    query_input, query_params = find_params(signature, input_params, ParamKind.QUERY, operation_id)
+    path_input, path_params = find_params(signature, input_params, ParamKind.PATH, operation_id)
+
+    input_params.difference_update(header_params | query_params | path_params)
 
     if len(input_params) == 1:
         param = signature.parameters[input_params.pop()]
@@ -122,22 +134,6 @@ def inspect_operation(
             raise FalconApiConfigError(f"Return type needs to be a subclass of {BaseModel.__name__}")
         t_output = signature.return_annotation
 
-    if operation_id is None:
-        func_name_parts = func.__name__.split("_")
-        operation_id = "".join([func_name_parts[0]] + [p.capitalize() for p in func_name_parts[1:]])
-
-    query_input = None
-    if len(query_params) > 0:
-        query_input = create_model(
-            f"{operation_id}QueryParams", **{qp.name: (qp.annotation, qp.info) for qp in query_params}
-        )  # type: ignore[call-overload]
-
-    path_input = None
-    if len(path_params) > 0:
-        path_input = create_model(
-            f"{operation_id}PathParams", **{qp.name: (qp.annotation, qp.info) for qp in path_params}
-        )  # type: ignore[call-overload]
-
     return OperationInfo(
         method=method,
         operation_id=operation_id,
@@ -147,7 +143,7 @@ def inspect_operation(
         func_output_model=t_output,
         query_input=query_input,
         path_input=path_input,
-        header_params=header_params,
+        header_input=header_input,
         docs=docs,
     )
 
