@@ -4,7 +4,7 @@ import falcon
 from falcon.testing import TestClient, Result
 
 from falcon_api import ApiBaseResource
-from falcon_api.operation import T_METHOD
+from falcon_api.operation import HttpMethod
 
 
 class SimulatedResource:
@@ -18,9 +18,9 @@ class SimulatedResource:
 
     def __get_path(self, kwargs: dict[str, Any]) -> str:
         default_path = self.resource.route.plain
-        return kwargs.pop("path", default_path)
+        return str(kwargs.pop("path", default_path))
 
-    def simulate_request(self, method: T_METHOD, **kwargs: Any) -> Result:
+    def simulate_request(self, method: HttpMethod, **kwargs: Any) -> Result:
         return self.client.simulate_request(method, path=self.__get_path(kwargs), **kwargs)
 
     def simulate_get(self, **kwargs: Any) -> Result:

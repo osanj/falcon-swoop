@@ -1,6 +1,6 @@
 import inspect
 from dataclasses import dataclass
-from typing import TypeVar, Literal, Callable, Sequence
+from typing import Any, Literal, Callable, Sequence
 
 from pydantic import create_model, BaseModel
 from pydantic.fields import FieldInfo
@@ -9,16 +9,15 @@ from falcon_api.error import FalconApiConfigError
 from falcon_api.model import Param
 
 
-T_METHOD = Literal["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]  # , "OPTIONS"]
-T_MODEL = TypeVar("T_MODEL", bound=BaseModel)
-T_MIME = Literal["application/json"]
+HttpMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]  # , "OPTIONS"]
+MimeType = Literal["application/json"]
 ATTR_OPERATION = "operation"
 
 
 @dataclass
 class OperationApiModelInput:
     name: str
-    model: type[T_MODEL]
+    model: type[BaseModel]
 
 
 @dataclass
@@ -35,17 +34,17 @@ class OperationDocs:
 
 @dataclass
 class OperationInfo:
-    method: T_METHOD
+    method: HttpMethod
     operation_id: str
-    accept: list[T_MIME]
+    accept: list[MimeType]
 
-    func: Callable
+    func: Callable[..., Any]
     func_input: OperationApiModelInput | None
-    query_input: type[T_MODEL] | None
-    path_input: type[T_MODEL] | None
+    query_input: type[BaseModel] | None
+    path_input: type[BaseModel] | None
     # allow raw input?
     # accept mime type?
-    func_output_model: type[T_MODEL] | None
+    func_output_model: type[BaseModel] | None
 
     header_params: list[OperationApiParamInput]
     # path_params: list[OperationApiParamInput]
@@ -59,10 +58,10 @@ class OperationInfo:
 
 
 def inspect_operation(
-    func: Callable,
-    method: T_METHOD,
+    func: Callable[..., Any],
+    method: HttpMethod,
     operation_id: str | None = None,
-    accept: Sequence[T_MIME] = ("application/json",),
+    accept: Sequence[MimeType] = ("application/json",),
     docs: OperationDocs | None = None,
 ) -> OperationInfo:
     signature = inspect.signature(func)
@@ -132,13 +131,13 @@ def inspect_operation(
     if len(query_params) > 0:
         query_input = create_model(
             f"{operation_id}QueryParams", **{qp.name: (qp.annotation, qp.info) for qp in query_params}
-        )
+        )  # type: ignore[call-overload]
 
     path_input = None
     if len(path_params) > 0:
         path_input = create_model(
             f"{operation_id}PathParams", **{qp.name: (qp.annotation, qp.info) for qp in path_params}
-        )
+        )  # type: ignore[call-overload]
 
     return OperationInfo(
         method=method,
@@ -155,9 +154,9 @@ def inspect_operation(
 
 
 def inspect_operation_doc(
-    func: Callable,
+    func: Callable[..., Any],
 ) -> OperationDocs:
-    func_name_method_mapping: dict[str, T_METHOD] = {
+    func_name_method_mapping: dict[str, HttpMethod] = {
         "on_get": "GET",
         "on_post": "POST",
     }
@@ -169,18 +168,20 @@ def inspect_operation_doc(
             f"the typical request methods: {', '.join(func_name_method_mapping.keys())}"
         )
 
+    return OperationDocs()
+
 
 def operation(
-    method: T_METHOD,
+    method: HttpMethod,
     operation_id: str | None = None,
-    accept: Sequence[T_MIME] = ("application/json",),
+    accept: Sequence[MimeType] = ("application/json",),
     docs: OperationDocs | None = None,
-) -> Callable:
+) -> Callable[..., Any]:
     """
     ...
     """
 
-    def wrap(func: Callable) -> Callable:
+    def wrap(func: Callable[..., Any]) -> Callable[..., Any]:
         info = inspect_operation(
             func,
             method=method,
@@ -197,12 +198,12 @@ def operation(
 def operation_doc(
     operation_id: str | None = None,
     docs: OperationDocs | None = None,
-) -> Callable:
+) -> Callable[..., Any]:
     """
     ...
     """
 
-    def wrap(func: Callable) -> Callable:
+    def wrap(func: Callable[..., Any]) -> Callable[..., Any]:
         inspect_operation_doc(func)
         return func
 

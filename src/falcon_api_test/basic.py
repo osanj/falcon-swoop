@@ -15,7 +15,7 @@ class BasicOutput(BaseModel):
 
 class BasicResource(ApiBaseResource):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("/basic")
 
     @operation(method="GET")
@@ -33,7 +33,7 @@ class BasicResource(ApiBaseResource):
 
 class BasicResourceWithPath(ApiBaseResource):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("/country/{country}/city/{cityId}")
 
     @operation(method="GET")
@@ -62,7 +62,7 @@ def test_missing_input_raises_400(resource: SimulatedResource) -> None:
 
 def test_unused_operation_raises_405(resource: SimulatedResource) -> None:
     for method in ["PUT", "PATCH", "DELETE"]:
-        resp = resource.simulate_request(method=method)
+        resp = resource.simulate_request(method=method)  # type: ignore[arg-type]
         assert resp.status_code == 405, f"Unexpected status code for {method}"
         assert resp.headers["allow"] == "GET, POST", f"Unexpected allow header for {method}"
 

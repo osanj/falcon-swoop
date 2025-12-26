@@ -6,7 +6,7 @@ import falcon
 from pydantic import BaseModel, ValidationError
 
 from falcon_api.error import FalconApiConfigError
-from falcon_api.operation import ATTR_OPERATION, T_METHOD, OperationInfo
+from falcon_api.operation import ATTR_OPERATION, HttpMethod, OperationInfo
 from falcon_api.route import ApiRoute
 
 
@@ -24,20 +24,9 @@ class ApiBaseResource:
         self.__context: RequestContext | None = None
         self.__operations = self.__setup()
 
-    def __setup(self) -> dict[T_METHOD, OperationInfo]:
-        operations_by_method: dict[T_METHOD, list[OperationInfo]] = collections.defaultdict(list)
-
-        for name in dir(self):
-            if name.startswith("__"):
-                continue
-            try:
-                item = getattr(self, name)
-            except:
-                continue
-            operation_info = getattr(item, ATTR_OPERATION, None)
-            if isinstance(operation_info, OperationInfo):
-                operations_by_method[operation_info.method].append(operation_info)
-
+    def __check_operation_config(
+        self, operations_by_method: dict[str, list[OperationInfo]]
+    ) -> dict[str, OperationInfo]:
         for method, ops in operations_by_method.items():
             if len(ops) > 1:
                 names = ", ".join([op.func_name for op in ops])
@@ -46,8 +35,9 @@ class ApiBaseResource:
         if len(operations_by_method) == 0:
             raise FalconApiConfigError("Found no operation, at least one is required")
 
-        operation_by_method = {method: ops[0] for method, ops in operations_by_method.items()}
+        return {method: ops[0] for method, ops in operations_by_method.items()}
 
+    def __check_path_parameter_match(self, operation_by_method: dict[str, OperationInfo]) -> None:
         path_param_exp = self.route.param_names
         for method, op in operation_by_method.items():
             path_param_act = set()
@@ -65,6 +55,22 @@ class ApiBaseResource:
                     f"additional parameters: {too_much}"
                 )
 
+    def __setup(self) -> dict[str, OperationInfo]:
+        operations_by_method: dict[str, list[OperationInfo]] = collections.defaultdict(list)
+
+        for name in dir(self):
+            if name.startswith("__"):
+                continue
+            try:
+                item = getattr(self, name)
+            except:
+                continue
+            operation_info = getattr(item, ATTR_OPERATION, None)
+            if isinstance(operation_info, OperationInfo):
+                operations_by_method[operation_info.method].append(operation_info)
+
+        operation_by_method = self.__check_operation_config(operations_by_method)
+        self.__check_path_parameter_match(operation_by_method)
         return operation_by_method
 
     @property
