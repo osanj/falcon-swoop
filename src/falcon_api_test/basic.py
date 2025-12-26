@@ -84,7 +84,7 @@ def test_bad_query_param_raises_400(resource: SimulatedResource) -> None:
 
 
 def test_bad_path_param_raises_400(resource_with_path: SimulatedResource) -> None:
-    route = resource_with_path.resource.route
+    route = resource_with_path.resource.api_route
     resp = resource_with_path.simulate_get(path=route.format(country="fr", cityId=1))
     assert resp.status_code == 400
     resp3 = resource_with_path.simulate_get(path=route.format(country="FR", cityId=1))
@@ -94,7 +94,7 @@ def test_bad_path_param_raises_400(resource_with_path: SimulatedResource) -> Non
 
 
 def test_header_parameters_are_case_insensitive(resource_with_path: SimulatedResource) -> None:
-    path = resource_with_path.resource.route.format(country="FR", cityId=1)
+    path = resource_with_path.resource.api_route.format(country="FR", cityId=1)
     expected_header_value = "not-dummy"
 
     resp0 = resource_with_path.simulate_get(path=path)
@@ -105,3 +105,12 @@ def test_header_parameters_are_case_insensitive(resource_with_path: SimulatedRes
         resp0 = resource_with_path.simulate_get(path=path, headers={header: expected_header_value})
         assert resp0.status_code == 200
         assert resp0.json["data"]["api_key"] == expected_header_value
+
+
+@pytest.mark.parametrize("resource_fixture_name", ["resource", "resource_with_path"])
+def test_openapi_generation(resource_fixture_name: str, request: pytest.FixtureRequest) -> None:
+    sim_res: SimulatedResource = request.getfixturevalue(resource_fixture_name)
+    sim_res.generate_openapi(
+        title=sim_res.resource.__class__.__name__,
+        version="0.0.1",
+    )

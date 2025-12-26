@@ -4,3 +4,7 @@ class FalconApiError(Exception):
 
 class FalconApiConfigError(FalconApiError):
     pass
+
+
+class FalconApiDocGenerationError(FalconApiError):
+    pass

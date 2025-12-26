@@ -1,6 +1,7 @@
 import inspect
 from dataclasses import dataclass
-from typing import Any, Literal, Callable, Sequence
+from typing import Any, Callable, Literal, NotRequired, Sequence, TypedDict
+from typing_extensions import Unpack
 
 from pydantic import create_model, BaseModel
 from pydantic.fields import FieldInfo
@@ -36,7 +37,9 @@ class OperationDocs:
 class OperationInfo:
     method: HttpMethod
     operation_id: str
+    tags: list[str]
     accept: list[MimeType]
+    deprecated: bool
 
     func: Callable[..., Any]
     func_input: OperationApiModelInput | None
@@ -97,17 +100,20 @@ def find_params(
     return param_type, used_param_names
 
 
-def inspect_operation(
-    func: Callable[..., Any],
-    method: HttpMethod,
-    operation_id: str | None = None,
-    accept: Sequence[MimeType] = ("application/json",),
-    docs: OperationDocs | None = None,
-) -> OperationInfo:
+class OperationKwArgs(TypedDict):
+    operation_id: NotRequired[str | None]
+    tags: NotRequired[list[str]]
+    accept: NotRequired[list[MimeType]]
+    docs: NotRequired[OperationDocs | None]
+    deprecated: NotRequired[bool]
+
+
+def inspect_operation(method: HttpMethod, func: Callable[..., Any], **kwargs: Unpack[OperationKwArgs]) -> OperationInfo:
     signature = inspect.signature(func)
     op_input = None
     t_output = None
 
+    operation_id = kwargs.get("operation_id")
     if operation_id is None:
         func_name_parts = func.__name__.split("_")
         operation_id = "".join([func_name_parts[0]] + [p.capitalize() for p in func_name_parts[1:]])
@@ -134,17 +140,20 @@ def inspect_operation(
             raise FalconApiConfigError(f"Return type needs to be a subclass of {BaseModel.__name__}")
         t_output = signature.return_annotation
 
+    default_accept: list[MimeType] = ["application/json"]
     return OperationInfo(
         method=method,
         operation_id=operation_id,
-        accept=list(accept),
+        tags=kwargs.get("tags", []),
+        accept=kwargs.get("accept", default_accept),
+        deprecated=kwargs.get("deprecated", False),
         func=func,
         func_input=op_input,
         func_output_model=t_output,
         query_input=query_input,
         path_input=path_input,
         header_input=header_input,
-        docs=docs,
+        docs=kwargs.get("docs"),
     )
 
 
@@ -168,22 +177,16 @@ def inspect_operation_doc(
 
 def operation(
     method: HttpMethod,
-    operation_id: str | None = None,
-    accept: Sequence[MimeType] = ("application/json",),
-    docs: OperationDocs | None = None,
+    **kwargs: Unpack[OperationKwArgs],
 ) -> Callable[..., Any]:
     """
-    ...
+    Decorator for API operations.
+    :param operation_id: specific openAPI operation id, if not provided the camelCased function name will be used
+    :param deprecated: flag to mark the operation as deprecated in the openapi docs (default: False)
     """
 
     def wrap(func: Callable[..., Any]) -> Callable[..., Any]:
-        info = inspect_operation(
-            func,
-            method=method,
-            operation_id=operation_id,
-            accept=accept,
-            docs=docs,
-        )
+        info = inspect_operation(method, func, **kwargs)
         setattr(func, ATTR_OPERATION, info)
         return func
 

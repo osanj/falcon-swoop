@@ -1,13 +1,13 @@
 import collections
 import warnings
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any, Generator, Mapping
 
 import falcon
 from pydantic import BaseModel, ValidationError
 
 from falcon_api.error import FalconApiConfigError
-from falcon_api.operation import ATTR_OPERATION, OperationInfo
+from falcon_api.operation import ATTR_OPERATION, HttpMethod, OperationInfo
 from falcon_api.route import ApiRoute
 
 
@@ -19,15 +19,18 @@ class RequestContext:
 
 class ApiBaseResource:
 
-    def __init__(self, route: str, tag: str | None = None):
-        self.route = ApiRoute(route)
-        self.tag = tag
+    def __init__(self, route: str):
+        self.api_route = ApiRoute(route)
         self.__context: RequestContext | None = None
-        self.__operations = self.__setup()
+        self.__operation_by_method = self.__setup()
+
+    def api_ops(self) -> Generator[OperationInfo, None, None]:
+        for op in self.__operation_by_method.values():
+            yield op
 
     def __check_operation_config(
-        self, operations_by_method: dict[str, list[OperationInfo]]
-    ) -> dict[str, OperationInfo]:
+        self, operations_by_method: dict[HttpMethod, list[OperationInfo]]
+    ) -> dict[HttpMethod, OperationInfo]:
         for method, ops in operations_by_method.items():
             if len(ops) > 1:
                 names = ", ".join([op.func_name for op in ops])
@@ -38,8 +41,8 @@ class ApiBaseResource:
 
         return {method: ops[0] for method, ops in operations_by_method.items()}
 
-    def __check_path_parameter_match(self, operation_by_method: dict[str, OperationInfo]) -> None:
-        path_param_exp = self.route.param_names
+    def __check_path_parameter_match(self, operation_by_method: dict[HttpMethod, OperationInfo]) -> None:
+        path_param_exp = self.api_route.param_names
         for method, op in operation_by_method.items():
             path_param_act = set()
             if op.path_input is not None:
@@ -56,8 +59,8 @@ class ApiBaseResource:
                     f"additional parameters: {too_much}"
                 )
 
-    def __setup(self) -> dict[str, OperationInfo]:
-        operations_by_method: dict[str, list[OperationInfo]] = collections.defaultdict(list)
+    def __setup(self) -> dict[HttpMethod, OperationInfo]:
+        operations_by_method: dict[HttpMethod, list[OperationInfo]] = collections.defaultdict(list)
 
         for name in dir(self):
             if name.startswith("__"):
@@ -104,13 +107,14 @@ class ApiBaseResource:
 
     def __on_request(
         self,
+        method: HttpMethod,
         req: falcon.Request,
         resp: falcon.Response,
         **path_params: Any,
     ) -> None:
-        op: OperationInfo | None = self.__operations.get(req.method)
+        op: OperationInfo | None = self.__operation_by_method.get(method)
         if op is None:
-            op_keys = self.__operations.keys()
+            op_keys = self.__operation_by_method.keys()
             raise falcon.HTTPMethodNotAllowed(op_keys)
         self.__context = RequestContext(req, resp)
 
@@ -133,16 +137,16 @@ class ApiBaseResource:
         self.__context = None
 
     def on_get(self, req: falcon.Request, resp: falcon.Response, **path_params: Any) -> None:
-        self.__on_request(req, resp, **path_params)
+        self.__on_request("GET", req, resp, **path_params)
 
     def on_post(self, req: falcon.Request, resp: falcon.Response, **path_params: Any) -> None:
-        self.__on_request(req, resp, **path_params)
+        self.__on_request("POST", req, resp, **path_params)
 
     def on_put(self, req: falcon.Request, resp: falcon.Response, **path_params: Any) -> None:
-        self.__on_request(req, resp, **path_params)
+        self.__on_request("PUT", req, resp, **path_params)
 
     def on_patch(self, req: falcon.Request, resp: falcon.Response, **path_params: Any) -> None:
-        self.__on_request(req, resp, **path_params)
+        self.__on_request("PATCH", req, resp, **path_params)
 
     def on_delete(self, req: falcon.Request, resp: falcon.Response, **path_params: Any) -> None:
-        self.__on_request(req, resp, **path_params)
+        self.__on_request("DELETE", req, resp, **path_params)
