@@ -135,7 +135,7 @@ def inspect_operation(method: HttpMethod, func: Callable[..., Any], **kwargs: Un
     elif len(input_params) > 1:
         raise FalconApiConfigError("More than 1 parameter found")
 
-    if signature.return_annotation != signature.empty:
+    if signature.return_annotation not in (signature.empty, None):
         if not issubclass(signature.return_annotation, BaseModel):
             raise FalconApiConfigError(f"Return type needs to be a subclass of {BaseModel.__name__}")
         t_output = signature.return_annotation
