@@ -25,10 +25,19 @@ to an existing app or just add a single typed resource to your project.
 - [ ] rich docstrings on operation, operation_doc and possibly other frequently used symbols
 - [ ] basic docs on README
 
+### User Guide
 
-### Development Setup
+quick start, walkthrough (operation, operation_doc, generator)
+
+### Development Guide
 
 ```
 pip install .  # to install main dependencies
 pip install -e ".[dev]"  # to install main and dev dependencies
+
+black
+mypy
+pytest -v
+
+hatchling build -t wheel
 ```
