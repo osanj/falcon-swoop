@@ -1,7 +1,9 @@
-# falcon_api
+# falcon-swoop
 
-Easy-to-define typed API operations with pydantic and automatic OpenAPI doc generation.
-It is opt-in: Use the resource base class of this package whenever needed, other falcon resources will stay untouched.
+Easy-to-define typed API resources for [falcon](https://github.com/falconry/falcon) based on [pydantic](https://github.com/pydantic/pydantic) models.
+Automatic OpenAPI doc generation included. Fully opt-in: Use it for all your resources, start attaching typed operations
+to an existing app or just add a single typed resource to your project.
+
 
 ### Open Items
 
