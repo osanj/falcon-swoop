@@ -62,6 +62,16 @@ class ApiBaseResource:
                     f"additional parameters: {too_much}"
                 )
 
+    def __patch_op(self, method: HttpMethod) -> None:
+        method_name = f"on_{method}".lower()
+        if getattr(self, method_name, None) is not None:
+            raise FalconApiConfigError(f"Decorated {method} operation is invalid because method {method_name} exists")
+
+        def forward(req: falcon.Request, resp: falcon.Response, **path_params: Any) -> None:
+            self.__on_request(method, req, resp, **path_params)
+
+        setattr(self, method_name, forward)
+
     def __setup(self) -> dict[HttpMethod, OpInfo]:
         operations_by_method: dict[HttpMethod, list[OpInfo]] = collections.defaultdict(list)
 
@@ -78,6 +88,9 @@ class ApiBaseResource:
 
         operation_by_method = self.__check_operation_config(operations_by_method)
         self.__check_path_parameter_match(operation_by_method)
+        for method, op in operation_by_method.items():
+            if isinstance(op, OpInfoWithSpec):
+                self.__patch_op(method)
         return operation_by_method
 
     @property
@@ -116,11 +129,10 @@ class ApiBaseResource:
         **path_params: Any,
     ) -> None:
         op: OpInfo | None = self.__operation_by_method.get(method)
-        if op is not None and not isinstance(op, OpInfoWithSpec):
-            raise ValueError(f"Expected object of subtype {OpInfoWithSpec.__name__}")
         if op is None:
-            op_keys = self.__operation_by_method.keys()
-            raise falcon.HTTPMethodNotAllowed(op_keys)
+            raise ValueError(f"Expected object of subtype {OpInfoWithSpec.__name__}")
+        if not isinstance(op, OpInfoWithSpec):
+            raise ValueError(f"Expected object of subtype {OpInfoWithSpec.__name__}")
 
         self.__context = RequestContext(req, resp)
 
@@ -142,18 +154,3 @@ class ApiBaseResource:
         resp.status = falcon.HTTP_OK
 
         self.__context = None
-
-    def on_get(self, req: falcon.Request, resp: falcon.Response, **path_params: Any) -> None:
-        self.__on_request("GET", req, resp, **path_params)
-
-    def on_post(self, req: falcon.Request, resp: falcon.Response, **path_params: Any) -> None:
-        self.__on_request("POST", req, resp, **path_params)
-
-    def on_put(self, req: falcon.Request, resp: falcon.Response, **path_params: Any) -> None:
-        self.__on_request("PUT", req, resp, **path_params)
-
-    def on_patch(self, req: falcon.Request, resp: falcon.Response, **path_params: Any) -> None:
-        self.__on_request("PATCH", req, resp, **path_params)
-
-    def on_delete(self, req: falcon.Request, resp: falcon.Response, **path_params: Any) -> None:
-        self.__on_request("DELETE", req, resp, **path_params)

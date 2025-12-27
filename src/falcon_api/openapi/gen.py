@@ -90,6 +90,8 @@ class OpenApiGenerator:
     def map_schema(self, op_type: OpType) -> OpenApiReference | JsonSchema | None:
         if op_type is None:
             return None
+        if issubclass(op_type, str):
+            return {"type": "string"}
         return self.__model_collector.get_reference(op_type)
 
     def map_example(self, example: OpExample) -> OpenApiExample:

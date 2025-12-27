@@ -31,7 +31,7 @@ class OpApiParamInput:
 
 
 OpExample = BaseModel | dict[str, Any] | str
-OpType = type[BaseModel] | None
+OpType = type[BaseModel] | type[str] | None
 
 
 @dataclass
@@ -47,14 +47,18 @@ class OpTypeDoc:
 
 @dataclass
 class OpRequestDoc:
-    required: bool
     by_mime: dict[str, OpTypeDoc]
+    required: bool = True
+
+    def __post_init__(self) -> None:
+        if len(self.by_mime) == 0:
+            raise FalconApiConfigError("At least one mime request type needs to be specified")
 
 
 @dataclass
 class OpResponseDoc:
     description: str
-    by_mime: dict[str, OpTypeDoc]
+    by_mime: dict[str, OpTypeDoc] = dataclass_field(default_factory=dict)
 
     # def __post_init__(self) -> None:
     #     if len(self.by_mime) == 0:
