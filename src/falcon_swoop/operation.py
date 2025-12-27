@@ -6,8 +6,8 @@ from typing_extensions import Self, Unpack
 from pydantic import create_model, BaseModel
 from pydantic.fields import FieldInfo
 
-from falcon_api.error import FalconApiConfigError
-from falcon_api.param import Param, ParamKind
+from falcon_swoop.error import FalconApiConfigError
+from falcon_swoop.param import Param, ParamKind
 
 
 HttpMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]  # , "OPTIONS"]

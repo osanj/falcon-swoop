@@ -4,10 +4,10 @@ import falcon
 import pytest
 from pydantic import BaseModel
 
-from falcon_api import ApiBaseResource, operation, operation_doc, header_param, query_param, path_param
-from falcon_api.openapi.spec import OpenApiOperation
-from falcon_api.operation import HttpMethod
-from falcon_api_test.util import SimulatedResource
+from falcon_swoop import ApiBaseResource, operation, operation_doc, header_param, query_param, path_param
+from falcon_swoop.openapi.spec import OpenApiOperation
+from falcon_swoop.operation import HttpMethod
+from falcon_swoop_test.util import SimulatedResource
 
 
 class BasicInput(BaseModel):

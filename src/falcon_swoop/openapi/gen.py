@@ -3,9 +3,9 @@ from typing import Any, Final, Sequence
 
 from pydantic import BaseModel, create_model
 
-from falcon_api import ApiBaseResource
-from falcon_api.error import FalconApiDocGenerationError
-from falcon_api.openapi.spec import (
+from falcon_swoop import ApiBaseResource
+from falcon_swoop.error import FalconApiDocGenerationError
+from falcon_swoop.openapi.spec import (
     JsonSchema,
     OpenApiComponents,
     OpenApiDocument,
@@ -19,7 +19,7 @@ from falcon_api.openapi.spec import (
     OpenApiRequestBody,
     OpenApiResponse,
 )
-from falcon_api.operation import (
+from falcon_swoop.operation import (
     HttpMethod,
     OpInfo,
     OpResponseDoc,

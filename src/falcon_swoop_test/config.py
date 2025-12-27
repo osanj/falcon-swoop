@@ -1,7 +1,7 @@
 import pytest
 from pydantic import BaseModel
 
-from falcon_api import ApiBaseResource, operation, FalconApiConfigError, path_param, query_param
+from falcon_swoop import ApiBaseResource, operation, FalconApiConfigError, path_param, query_param
 
 
 class DummyModel(BaseModel):

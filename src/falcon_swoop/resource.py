@@ -6,9 +6,9 @@ from typing import Any, Generator, Mapping
 import falcon
 from pydantic import BaseModel, ValidationError
 
-from falcon_api.error import FalconApiConfigError
-from falcon_api.operation import ATTR_OPERATION, HttpMethod, OpInfo, OpInfoWithSpec
-from falcon_api.route import ApiRoute
+from falcon_swoop.error import FalconApiConfigError
+from falcon_swoop.operation import ATTR_OPERATION, HttpMethod, OpInfo, OpInfoWithSpec
+from falcon_swoop.route import ApiRoute
 
 
 @dataclass

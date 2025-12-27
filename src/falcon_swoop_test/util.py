@@ -3,8 +3,8 @@ from typing import Any
 import falcon
 from falcon.testing import TestClient, Result
 
-from falcon_api import ApiBaseResource, OpenApiGenerator, OpenApiGeneratorResult, OpenApiGeneratorSettings
-from falcon_api.operation import HttpMethod
+from falcon_swoop import ApiBaseResource, OpenApiGenerator, OpenApiGeneratorResult, OpenApiGeneratorSettings
+from falcon_swoop.operation import HttpMethod
 
 
 class SimulatedResource:

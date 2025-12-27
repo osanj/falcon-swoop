@@ -2,7 +2,7 @@ import falcon
 import pytest
 from pydantic import BaseModel, Field
 
-from falcon_api import (
+from falcon_swoop import (
     ApiBaseResource,
     operation,
     operation_doc,
@@ -13,7 +13,7 @@ from falcon_api import (
     OpenApiGenerator,
     OpenApiGeneratorResult,
 )
-from falcon_api.openapi.spec import OpenApiReference, OpenApiResponse, OpenApiRequestBody, OpenApiMimeType
+from falcon_swoop.openapi.spec import OpenApiReference, OpenApiResponse, OpenApiRequestBody, OpenApiMimeType
 
 
 class RecordItemRequest(BaseModel):

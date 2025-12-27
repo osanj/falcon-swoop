@@ -1,6 +1,6 @@
 from typing import Any, Sequence
 
-from falcon_api.error import FalconApiConfigError
+from falcon_swoop.error import FalconApiConfigError
 
 
 class ApiRoute:
