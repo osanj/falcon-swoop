@@ -21,5 +21,14 @@ to an existing app or just add a single typed resource to your project.
 - [ ] grid CI pipeline testing combinations of python, falcon and pydantic
 - [ ] add unit test to make sure doc strings of operation and operation_doc are mostly identical
 - [ ] remove `OpenApiMimeType`? (seems too restrictive)
-- [ ] include `py.typed` in package
+- [x] include `py.typed` in package
+- [ ] rich docstrings on operation, operation_doc and possibly other frequently used symbols
 - [ ] basic docs on README
+
+
+### Development Setup
+
+```
+pip install .  # to install main dependencies
+pip install -e ".[dev]"  # to install main and dev dependencies
+```
