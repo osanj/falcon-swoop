@@ -1,0 +1,3 @@
+pydantic==2.*
+falcon==4.*
+typing-extensions>=4.1
