@@ -111,7 +111,7 @@ def test_config_error_for_missing_param_type() -> None:
 
 
 def test_config_error_for_optional_return_value() -> None:
-    with pytest.raises(FalconSwoopConfigError, match="Return type cannot be union or optional"):
+    with pytest.raises(FalconSwoopConfigError, match="Return type cannot be a union or optional"):
 
         class Resource(ApiBaseResource):
             @operation(method="GET")

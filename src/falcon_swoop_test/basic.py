@@ -57,13 +57,13 @@ class BasicResource2(ApiBaseResource):
     @operation(method="PUT")
     def put_city_data(
         self,
-        # req: BasicInput | None,
+        req: BasicInput | None,
         country: str = country_param,
         city_id: int = city_id_param,
         tag: str | None = query_param(),
         api_key: str | None = header_param(alias="X-API-KEY"),
     ) -> BasicOutput:
-        return BasicOutput(data={"tag": tag, "api_key": api_key})
+        return BasicOutput(data={"tag": tag, "api_key": api_key, "param1": None if req is None else req.param1})
 
     @operation_doc(operation_id="updateCityData", deprecated=True)
     def on_patch(self, req: falcon.Request, resp: falcon.Response, **params: Any) -> None:
@@ -88,8 +88,12 @@ def resource2() -> SimulatedResource:
 
 
 def test_missing_input_raises_400(resource1: SimulatedResource) -> None:
-    resp = resource1.simulate_post()
-    assert resp.status_code == 400
+    resp = resource1.simulate_post(json_model=BasicInput(param1="test"))
+    assert resp.status_code == 200
+    assert resp.json["data"]["param1"] == "test"
+
+    resp_missing = resource1.simulate_post()
+    assert resp_missing.status_code == 400
 
 
 @pytest.mark.parametrize(
@@ -163,10 +167,24 @@ def test_operation_not_decorated(resource2: SimulatedResource) -> None:
 
 
 def test_optional_query_param_and_header_param(resource2: SimulatedResource) -> None:
-    resp = resource2.simulate_put(path=resource2.resource.api_route.format(country="ES", cityId=1))
+    resp = resource2.simulate_put(
+        path=resource2.resource.api_route.format(country="ES", cityId=1),
+        json_model=BasicInput(param1="test"),
+    )
     assert resp.status_code == 200
     assert resp.json["data"]["tag"] is None
     assert resp.json["data"]["api_key"] is None
+
+
+def test_optional_input_model(resource2: SimulatedResource) -> None:
+    path = resource2.resource.api_route.format(country="ES", cityId=1)
+    resp = resource2.simulate_put(path=path, json_model=BasicInput(param1="test"))
+    assert resp.status_code == 200
+    assert resp.json["data"]["param1"] == "test"
+
+    resp_missing = resource2.simulate_put(path=path)
+    assert resp_missing.status_code == 200
+    assert resp_missing.json["data"]["param1"] is None
 
 
 @pytest.mark.parametrize(

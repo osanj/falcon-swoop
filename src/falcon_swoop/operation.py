@@ -27,10 +27,10 @@ class OpApiModelInput:
 @dataclass
 class OpApiParamInput:
     name: str
-    annotation: OpParamType
+    annotation: OpParamType  # TODO: remove?
     annotation_orig: Any
     info: FieldInfo
-    optional: bool = False
+    optional: bool = False  # TODO: replace with property that interprets annotation_orig?
 
 
 OpExample = BaseModel | dict[str, Any] | str
@@ -132,7 +132,7 @@ def find_param_type(
             else:
                 raise FalconSwoopConfigError(f"{param_error_hint} cannot be optional")
         else:
-            raise FalconSwoopConfigError(f"{param_error_hint} cannot be union")
+            raise FalconSwoopConfigError(f"{param_error_hint} cannot be a union")
 
     if annotation not in param.allow_types:
         raise FalconSwoopConfigError(
@@ -230,18 +230,29 @@ def inspect_operation(
 
     if len(input_params) == 1:
         param = signature.parameters[input_params.pop()]
+        param_annotation = param.annotation
         param_type = param.annotation
+        optional = False
+
+        if is_union_type(param_annotation):
+            unpacked = unpack_optional_type(param_annotation)
+            if unpacked.is_optional_for_single_type:
+                param_type = unpacked.types_without_none[0]
+                optional = True
+            else:
+                raise FalconSwoopConfigError(f"Operation input parameter {param.name} cannot be a union")
+
         if not issubclass(param_type, BaseModel):
             raise FalconSwoopConfigError(
-                f"Parameter type of {param.name} needs to be a subclass of {BaseModel.__name__}"
+                f"Operation input parameter {param.name} needs to be a subclass of {BaseModel.__name__}"
             )
-        op_input = OpApiModelInput(param.name, param_type)
+        op_input = OpApiModelInput(param.name, param_type, optional)
     elif len(input_params) > 1:
         raise FalconSwoopConfigError("More than 1 parameter found")
 
     if signature.return_annotation not in (signature.empty, None):
         if is_union_type(signature.return_annotation):
-            raise FalconSwoopConfigError("Return type cannot be union or optional")
+            raise FalconSwoopConfigError("Return type cannot be a union or optional")
         if not issubclass(signature.return_annotation, BaseModel):
             raise FalconSwoopConfigError(f"Return type needs to be a subclass of {BaseModel.__name__}")
         op_output_type = signature.return_annotation

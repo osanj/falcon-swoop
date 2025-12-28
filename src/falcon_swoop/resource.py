@@ -154,7 +154,15 @@ class ApiBaseResource:
         kwargs.update(self.__collect_typed_kwargs(req.headers, spec.header_input, case_sensitive=False))
 
         if spec.func_input is not None:
-            data = spec.func_input.model_type(**req.get_media())
+            if spec.func_input.optional:
+                media = req.get_media(default_when_empty=None)
+                if media is None:
+                    data = None
+                else:
+                    data = spec.func_input.model_type(**media)
+            else:
+                # calling req.get_media() again to maintain default falcon behavior for empty body when JSON is expected
+                data = spec.func_input.model_type(**req.get_media())
             kwargs[spec.func_input.name] = data
 
         data_output = op.func(self, **kwargs)
