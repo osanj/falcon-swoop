@@ -36,21 +36,36 @@ class BasicResource1(ApiBaseResource):
         return BasicOutput(data={"param1": basic_input.param1})
 
 
+country_param = path_param(pattern=r"^[A-Z]{2}$")
+city_id_param = path_param(alias="cityId", ge=1)
+
+
 class BasicResource2(ApiBaseResource):
 
     def __init__(self) -> None:
         super().__init__("/country/{country}/city/{cityId}")
 
     @operation(method="GET")
-    def get_output(
+    def get_city_data(
         self,
-        country: str = path_param(pattern=r"^[A-Z]{2}$"),
-        city_id: int = path_param(alias="cityId", ge=1),
+        country: str = country_param,
+        city_id: int = city_id_param,
         api_key: str = header_param(default="dummy", alias="X-API-KEY"),
     ) -> BasicOutput:
         return BasicOutput(data={"country": country, "city": city_id, "api_key": api_key})
 
-    @operation_doc(deprecated=True)
+    @operation(method="PUT")
+    def put_city_data(
+        self,
+        # req: BasicInput | None,
+        country: str = country_param,
+        city_id: int = city_id_param,
+        tag: str | None = query_param(),
+        api_key: str | None = header_param(alias="X-API-KEY"),
+    ) -> BasicOutput:
+        return BasicOutput(data={"tag": tag, "api_key": api_key})
+
+    @operation_doc(operation_id="updateCityData", deprecated=True)
     def on_patch(self, req: falcon.Request, resp: falcon.Response, **params: Any) -> None:
         resp.status = falcon.HTTP_200
         resp.content_type = falcon.MEDIA_TEXT
@@ -81,7 +96,7 @@ def test_missing_input_raises_400(resource1: SimulatedResource) -> None:
     "resource_fixture_name, methods, exp_allowed_methods",
     [
         ["resource1", {"PUT", "PATCH", "DELETE"}, {"GET", "POST", "OPTIONS"}],
-        ["resource2", {"POST", "PUT"}, {"GET", "PATCH", "DELETE", "OPTIONS"}],
+        ["resource2", {"POST"}, {"GET", "PUT", "PATCH", "DELETE", "OPTIONS"}],
     ],
 )
 def test_unused_operation_raises_405(
@@ -147,16 +162,27 @@ def test_operation_not_decorated(resource2: SimulatedResource) -> None:
     assert resp.text == "deleted"
 
 
-@pytest.mark.parametrize("resource_fixture_name, exp_op_count", [["resource1", 2], ["resource2", 2]])
-def test_openapi_generation(resource_fixture_name: str, exp_op_count: int, request: pytest.FixtureRequest) -> None:
+def test_optional_query_param_and_header_param(resource2: SimulatedResource) -> None:
+    resp = resource2.simulate_put(path=resource2.resource.api_route.format(country="ES", cityId=1))
+    assert resp.status_code == 200
+    assert resp.json["data"]["tag"] is None
+    assert resp.json["data"]["api_key"] is None
+
+
+@pytest.mark.parametrize(
+    "resource_fixture_name, exp_op_ids",
+    [["resource1", {"getSomething", "postSomething"}], ["resource2", {"getCityData", "putCityData", "updateCityData"}]],
+)
+def test_openapi_generation(resource_fixture_name: str, exp_op_ids: set[str], request: pytest.FixtureRequest) -> None:
     sim_res: SimulatedResource = request.getfixturevalue(resource_fixture_name)
     result = sim_res.generate_openapi(
         title=sim_res.resource.__class__.__name__,
         version="0.0.1",
     )
-    op_count = 0
+    op_ids = set()
     for path_item in result.spec.paths.values():
-        for v in vars(path_item):
-            if isinstance(getattr(path_item, v), OpenApiOperation):
-                op_count += 1
-    assert op_count == exp_op_count
+        for name in vars(path_item):
+            v = getattr(path_item, name)
+            if isinstance(v, OpenApiOperation):
+                op_ids.add(v.operation_id)
+    assert op_ids == exp_op_ids

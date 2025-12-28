@@ -6,8 +6,8 @@ from typing import Any, Generator, Mapping
 import falcon
 from pydantic import BaseModel, ValidationError
 
-from falcon_swoop.error import FalconSwoopConfigError
-from falcon_swoop.operation import ATTR_OPERATION, HttpMethod, OpInfo, OpInfoWithSpec
+from falcon_swoop.error import FalconSwoopConfigError, FalconSwoopWarning
+from falcon_swoop.operation import ATTR_OPERATION, HttpMethod, OpInfo, OpInfoWithSpec, OpFuncParamInput
 from falcon_swoop.route import ApiRoute
 
 
@@ -50,7 +50,10 @@ class ApiBaseResource:
             path_input = op.func_spec.path_input
             if path_input is not None:
                 path_param_act = set(
-                    [name if info.alias is None else info.alias for name, info in path_input.model_fields.items()]
+                    [
+                        name if info.alias is None else info.alias
+                        for name, info in path_input.model_type.model_fields.items()
+                    ]
                 )
 
             missing = path_param_exp.difference(path_param_act)
@@ -100,21 +103,29 @@ class ApiBaseResource:
         return self.__context
 
     def __collect_typed_kwargs(
-        self, input_kwargs: Mapping[str, Any], model_type: type[BaseModel] | None, case_sensitive: bool = True
+        self, input_kwargs_: Mapping[str, Any], param_input: OpFuncParamInput | None, case_sensitive: bool = True
     ) -> dict[str, Any]:
-        if model_type is None:
+        if param_input is None:
             return {}
+        input_kwargs = dict(input_kwargs_)
+        model_type = param_input.model_type
+        input_name: str
         if not case_sensitive:
             _input_kwargs = {k.lower(): v for k, v in input_kwargs.items()}
             if len(_input_kwargs) != len(input_kwargs):
-                warnings.warn("Unexpectedly lost data due to lowercasing")
+                warnings.warn("Unexpectedly lost data due to lowercasing", FalconSwoopWarning)
             _input_kwargs2 = {}
             for name, info in model_type.model_fields.items():
-                input_name: str = info.alias or name
+                input_name = info.alias or name
                 input_name_lowered = input_name.lower()
                 if input_name_lowered in _input_kwargs:
                     _input_kwargs2[input_name] = _input_kwargs[input_name_lowered]
             input_kwargs = _input_kwargs2
+        for name, info in model_type.model_fields.items():
+            input_name = info.alias or name
+            optional = param_input.param_by_name[name].optional
+            if input_name not in input_kwargs and optional:
+                input_kwargs[input_name] = None
         try:
             model: BaseModel = model_type(**input_kwargs)
         except ValidationError as e:

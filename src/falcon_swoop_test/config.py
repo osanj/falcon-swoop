@@ -136,7 +136,9 @@ def test_config_error_for_optional_path_parameter() -> None:
 
 
 def test_config_warning_for_optional_parameter_with_default() -> None:
-    with pytest.warns(FalconSwoopConfigWarning, match="Query parameter max_size is type hinted as optional, but will never be None"):
+    with pytest.warns(
+        FalconSwoopConfigWarning, match="Query parameter max_size is type hinted as optional, but will never be None"
+    ):
 
         class Resource(ApiBaseResource):
             @operation(method="GET")

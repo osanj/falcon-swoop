@@ -28,6 +28,7 @@ class OpApiModelInput:
 class OpApiParamInput:
     name: str
     annotation: OpParamType
+    annotation_orig: Any
     info: FieldInfo
     optional: bool = False
 
@@ -71,11 +72,17 @@ OpResponseDocByHttpCode = dict[int, OpResponseDoc]
 
 
 @dataclass
+class OpFuncParamInput:
+    model_type: type[BaseModel]
+    param_by_name: dict[str, OpApiParamInput]
+
+
+@dataclass
 class OpFuncSpec:
     func_input: OpApiModelInput | None
-    query_input: type[BaseModel] | None
-    path_input: type[BaseModel] | None
-    header_input: type[BaseModel] | None
+    query_input: OpFuncParamInput | None
+    path_input: OpFuncParamInput | None
+    header_input: OpFuncParamInput | None
     # allow raw input?
     # accept mime type?
     func_output_model: type[BaseModel] | None
@@ -140,7 +147,7 @@ def find_params(
     param_names: set[str],
     kind: OpParamKind,
     operation_id: str,
-) -> tuple[type[BaseModel] | None, set[str]]:
+) -> tuple[OpFuncParamInput | None, set[str]]:
     param_inputs = []
 
     for param_name in param_names:
@@ -160,10 +167,14 @@ def find_params(
             param_error_hint=error_start,
         )
         if optional and param.has_default_value and not param.has_none_as_default_value:
-            warnings.warn(f"{error_start} is type hinted as optional, but will never be None because of default value", FalconSwoopConfigWarning)
+            warnings.warn(
+                f"{error_start} is type hinted as optional, but will never be None because of default value",
+                FalconSwoopConfigWarning,
+            )
         param_input = OpApiParamInput(
             name=param_name,
             annotation=annotation,
+            annotation_orig=input_argument.annotation,
             info=param.field_info,
             optional=optional,
         )
@@ -176,9 +187,9 @@ def find_params(
     used_param_names = {pi.name for pi in param_inputs}
     param_model_name = f"{operation_id}{kind.lower().capitalize()}Params"
     param_type = create_model(
-        param_model_name, **{pi.name: (pi.annotation, pi.info) for pi in param_inputs}
+        param_model_name, **{pi.name: (pi.annotation_orig, pi.info) for pi in param_inputs}
     )  # type: ignore[call-overload]
-    return param_type, used_param_names
+    return OpFuncParamInput(param_type, {pi.name: pi for pi in param_inputs}), used_param_names
 
 
 class OperationKwArgs(TypedDict):
