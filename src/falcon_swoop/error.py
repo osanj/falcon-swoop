@@ -1,10 +1,10 @@
-class FalconApiError(Exception):
+class FalconSwoopError(Exception):
     pass
 
 
-class FalconApiConfigError(FalconApiError):
+class FalconSwoopConfigError(FalconSwoopError):
     pass
 
 
-class FalconApiDocGenerationError(FalconApiError):
+class FalconSwoopDocGenerationError(FalconSwoopError):
     pass

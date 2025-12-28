@@ -1,6 +1,6 @@
 from typing import Any, Sequence
 
-from falcon_swoop.error import FalconApiConfigError
+from falcon_swoop.error import FalconSwoopConfigError
 
 
 class ApiRoute:
@@ -11,7 +11,7 @@ class ApiRoute:
         param_names = self.find_param_names(self.parts)
         self.param_names = set(param_names)
         if len(param_names) != len(self.param_names):
-            raise FalconApiConfigError(f"Duplicate parameters were found in route {plain}")
+            raise FalconSwoopConfigError(f"Duplicate parameters were found in route {plain}")
 
     @classmethod
     def find_param_names(cls, parts: Sequence[str]) -> Sequence[str]:

@@ -6,7 +6,7 @@ from typing import Any, Generator, Mapping
 import falcon
 from pydantic import BaseModel, ValidationError
 
-from falcon_swoop.error import FalconApiConfigError
+from falcon_swoop.error import FalconSwoopConfigError
 from falcon_swoop.operation import ATTR_OPERATION, HttpMethod, OpInfo, OpInfoWithSpec
 from falcon_swoop.route import ApiRoute
 
@@ -34,10 +34,10 @@ class ApiBaseResource:
         for method, ops in operations_by_method.items():
             if len(ops) > 1:
                 names = ", ".join([op.func_name for op in ops])
-                raise FalconApiConfigError(f"Multiple functions are defined as {method} operation: {names}")
+                raise FalconSwoopConfigError(f"Multiple functions are defined as {method} operation: {names}")
 
         if len(operations_by_method) == 0:
-            raise FalconApiConfigError("Found no operation, at least one is required")
+            raise FalconSwoopConfigError("Found no operation, at least one is required")
 
         return {method: ops[0] for method, ops in operations_by_method.items()}
 
@@ -56,7 +56,7 @@ class ApiBaseResource:
             missing = path_param_exp.difference(path_param_act)
             too_much = path_param_act.difference(path_param_exp)
             if len(missing) > 0 or len(too_much) > 0:
-                raise FalconApiConfigError(
+                raise FalconSwoopConfigError(
                     f"Found mismatch for path parameters defined for operation {method}\n"
                     f"missing parameters: {missing}\n"
                     f"additional parameters: {too_much}"
@@ -65,7 +65,7 @@ class ApiBaseResource:
     def __patch_op(self, method: HttpMethod) -> None:
         method_name = f"on_{method}".lower()
         if getattr(self, method_name, None) is not None:
-            raise FalconApiConfigError(f"Decorated {method} operation is invalid because method {method_name} exists")
+            raise FalconSwoopConfigError(f"Decorated {method} operation is invalid because method {method_name} exists")
 
         def forward(req: falcon.Request, resp: falcon.Response, **path_params: Any) -> None:
             self.__on_request(method, req, resp, **path_params)
