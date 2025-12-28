@@ -11,6 +11,7 @@ to an existing app or just add a single typed resource to your project.
 - [ ] add security schemes to openapi docgen
 - [ ] add binaryIO and textIO input/output data
 - [ ] make certain query and header parameters optional (e.g. `my_query_param: int | None = ...`)
+- [ ] allow literal and str-Enum for parameters
 - [ ] warning that header params are case-insensitive (if name/alias provided that is not entirely upper/lowercase)
 - [ ] warning for pydantic models that declare fields of type bytes
 - [ ] add support for optional input objects

@@ -7,7 +7,8 @@ from pydantic import create_model, BaseModel
 from pydantic.fields import FieldInfo
 
 from falcon_swoop.error import FalconSwoopConfigError
-from falcon_swoop.param import Param, ParamKind
+from falcon_swoop.param import OpParam, OpParamKind, OpParamType
+from falcon_swoop.type_util import is_union_type, unpack_optional_type
 
 
 HttpMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]  # , "OPTIONS"]
@@ -25,7 +26,7 @@ class OpApiModelInput:
 @dataclass
 class OpApiParamInput:
     name: str
-    annotation: type[bool | int | float | str]
+    annotation: OpParamType
     info: FieldInfo
     optional: bool = False
 
@@ -103,8 +104,39 @@ class OpInfoWithSpec(OpInfo):
     func_spec: OpFuncSpec
 
 
+def find_param_type(
+    param: OpParam,
+    annotation: Any,
+    empty_val: Any,
+    param_error_hint: str,
+) -> tuple[OpParamType, bool]:
+    if annotation == empty_val:
+        raise FalconSwoopConfigError(
+            f"{param_error_hint} requires type annotation, possible types are {param.allow_types}"
+        )
+    if is_union_type(annotation):
+        unpacked = unpack_optional_type(annotation)
+        if unpacked.is_optional_for_single_type:
+            if param.allow_optional:
+                annotation = unpacked.types_without_none[0]
+            else:
+                raise FalconSwoopConfigError(f"{param_error_hint} cannot be optional")
+        else:
+            raise FalconSwoopConfigError(f"{param_error_hint} cannot be union")
+
+    if annotation not in param.allow_types:
+        raise FalconSwoopConfigError(
+            f"{param_error_hint} has unsupported type annotation {annotation}, "
+            f"possible types are {param.allow_types}"
+        )
+    return annotation, False
+
+
 def find_params(
-    signature: inspect.Signature, param_names: set[str], kind: ParamKind, operation_id: str
+    signature: inspect.Signature,
+    param_names: set[str],
+    kind: OpParamKind,
+    operation_id: str,
 ) -> tuple[type[BaseModel] | None, set[str]]:
     param_inputs = []
 
@@ -112,25 +144,22 @@ def find_params(
         param = signature.parameters[param_name]
         if param.default is None or param.default == signature.empty:
             continue
-        if not isinstance(param.default, Param):
+        if not isinstance(param.default, OpParam):
             continue
-        default: Param = param.default
+        default: OpParam = param.default
         if default.kind != kind:
             continue
-        if param.annotation is None:
-            raise FalconSwoopConfigError(
-                f"{default.kind.capitalize()} parameter {param.name} requires type annotation, "
-                f"possible types are {default.allowed_types}"
-            )
-        if param.annotation not in default.allowed_types:
-            raise FalconSwoopConfigError(
-                f"{default.kind.capitalize()} parameter {param.name} has unsupported type "
-                f"annotation {param.annotation}, possible types are {default.allowed_types}"
-            )
+        annotation, optional = find_param_type(
+            param=default,
+            annotation=param.annotation,
+            empty_val=signature.empty,
+            param_error_hint=f"{default.kind.capitalize()} parameter {param.name}",
+        )
         param_input = OpApiParamInput(
             name=param_name,
-            annotation=param.annotation,
+            annotation=annotation,
             info=default.field_info,
+            optional=optional,
         )
         param_inputs.append(param_input)
 
@@ -176,9 +205,9 @@ def inspect_operation(
 
     input_params = signature.parameters.keys() - {"self"}
 
-    header_input, header_params = find_params(signature, input_params, ParamKind.HEADER, operation_id)
-    query_input, query_params = find_params(signature, input_params, ParamKind.QUERY, operation_id)
-    path_input, path_params = find_params(signature, input_params, ParamKind.PATH, operation_id)
+    header_input, header_params = find_params(signature, input_params, OpParamKind.HEADER, operation_id)
+    query_input, query_params = find_params(signature, input_params, OpParamKind.QUERY, operation_id)
+    path_input, path_params = find_params(signature, input_params, OpParamKind.PATH, operation_id)
 
     input_params.difference_update(header_params | query_params | path_params)
 
@@ -194,6 +223,8 @@ def inspect_operation(
         raise FalconSwoopConfigError("More than 1 parameter found")
 
     if signature.return_annotation not in (signature.empty, None):
+        if is_union_type(signature.return_annotation):
+            raise FalconSwoopConfigError("Return type cannot be union or optional")
         if not issubclass(signature.return_annotation, BaseModel):
             raise FalconSwoopConfigError(f"Return type needs to be a subclass of {BaseModel.__name__}")
         op_output_type = signature.return_annotation

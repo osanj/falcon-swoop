@@ -92,3 +92,37 @@ def test_config_error_for_complex_param_type() -> None:
             @operation(method="GET")
             def get(self, query_params: dict[str, int] = query_param()) -> DummyModel:
                 return DummyModel()
+
+
+def test_config_error_for_missing_param_type() -> None:
+    with pytest.raises(FalconSwoopConfigError, match="Query parameter param requires type annotation"):
+
+        class Resource(ApiBaseResource):
+            @operation(method="GET")
+            def get(self, param=query_param()) -> DummyModel:  # type: ignore[no-untyped-def]
+                return DummyModel()
+
+
+def test_config_error_for_optional_return_value() -> None:
+    with pytest.raises(FalconSwoopConfigError, match="Return type cannot be union or optional"):
+
+        class Resource(ApiBaseResource):
+            @operation(method="GET")
+            def get(self) -> DummyModel | None:
+                return DummyModel()
+
+
+def test_config_error_for_optional_path_parameter() -> None:
+    with pytest.raises(FalconSwoopConfigError, match="Path parameter resource_id cannot be optional"):
+
+        class Resource(ApiBaseResource):
+            def __init__(self) -> None:
+                super().__init__("/resource/{resourceId}")
+
+            @operation(method="GET")
+            def get(
+                self,
+                resource_id: int | None = path_param(alias="resourceId"),
+                min_size: int | None = query_param(alias="minSize"),
+            ) -> DummyModel:
+                return DummyModel()

@@ -8,7 +8,7 @@ from pydantic import Field
 
 
 @unique
-class ParamKind(str, Enum):
+class OpParamKind(str, Enum):
     HEADER = "HEADER"
     QUERY = "QUERY"
     PATH = "PATH"
@@ -30,25 +30,30 @@ class FieldKwArgs(TypedDict):
     # TODO: add more?
 
 
-class Param:
+OpParamType = type[bool | int | float | str]
+
+
+class OpParam:
     def __init__(
         self,
-        kind: ParamKind,
-        allowed_types: Sequence[type[bool | int | float | str]],
+        kind: OpParamKind,
+        allow_types: Sequence[OpParamType],
+        allow_optional: bool,
         field_kwargs: FieldKwArgs,
     ):
         self.field_info = Field(**field_kwargs)
         self.kind = kind
-        self.allowed_types = allowed_types
+        self.allow_types = allow_types
+        self.allow_optional = allow_optional
 
 
 def header_param(**kwargs: Unpack[FieldKwArgs]) -> Any:
-    return Param(ParamKind.HEADER, (bool, int, float, str), kwargs)
+    return OpParam(OpParamKind.HEADER, (bool, int, float, str), True, kwargs)
 
 
 def query_param(**kwargs: Unpack[FieldKwArgs]) -> Any:
-    return Param(ParamKind.QUERY, (bool, int, float, str), kwargs)
+    return OpParam(OpParamKind.QUERY, (bool, int, float, str), True, kwargs)
 
 
 def path_param(**kwargs: Unpack[FieldKwArgs]) -> Any:
-    return Param(ParamKind.PATH, (int, str), kwargs)
+    return OpParam(OpParamKind.PATH, (int, str), False, kwargs)
