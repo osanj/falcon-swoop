@@ -1,7 +1,14 @@
 import pytest
 from pydantic import BaseModel
 
-from falcon_swoop import ApiBaseResource, operation, FalconSwoopConfigError, path_param, query_param
+from falcon_swoop import (
+    ApiBaseResource,
+    FalconSwoopConfigError,
+    FalconSwoopConfigWarning,
+    operation,
+    path_param,
+    query_param,
+)
 
 
 class DummyModel(BaseModel):
@@ -124,5 +131,18 @@ def test_config_error_for_optional_path_parameter() -> None:
                 self,
                 resource_id: int | None = path_param(alias="resourceId"),
                 min_size: int | None = query_param(alias="minSize"),
+            ) -> DummyModel:
+                return DummyModel()
+
+
+def test_config_warning_for_optional_parameter_with_default() -> None:
+    with pytest.warns(FalconSwoopConfigWarning, match="Query parameter max_size is type hinted as optional, but will never be None"):
+
+        class Resource(ApiBaseResource):
+            @operation(method="GET")
+            def get(
+                self,
+                min_size: int | None = query_param(alias="minSize", default=None),
+                max_size: int | None = query_param(alias="maxSize", default=10),
             ) -> DummyModel:
                 return DummyModel()

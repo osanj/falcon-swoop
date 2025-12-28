@@ -1,4 +1,5 @@
 import inspect
+import warnings
 from dataclasses import dataclass, field as dataclass_field
 from typing import Any, Callable, Literal, NotRequired, TypedDict
 from typing_extensions import Self, Unpack
@@ -6,7 +7,7 @@ from typing_extensions import Self, Unpack
 from pydantic import create_model, BaseModel
 from pydantic.fields import FieldInfo
 
-from falcon_swoop.error import FalconSwoopConfigError
+from falcon_swoop.error import FalconSwoopConfigError, FalconSwoopConfigWarning
 from falcon_swoop.param import OpParam, OpParamKind, OpParamType
 from falcon_swoop.type_util import is_union_type, unpack_optional_type
 
@@ -110,6 +111,7 @@ def find_param_type(
     empty_val: Any,
     param_error_hint: str,
 ) -> tuple[OpParamType, bool]:
+    optional = False
     if annotation == empty_val:
         raise FalconSwoopConfigError(
             f"{param_error_hint} requires type annotation, possible types are {param.allow_types}"
@@ -119,6 +121,7 @@ def find_param_type(
         if unpacked.is_optional_for_single_type:
             if param.allow_optional:
                 annotation = unpacked.types_without_none[0]
+                optional = True
             else:
                 raise FalconSwoopConfigError(f"{param_error_hint} cannot be optional")
         else:
@@ -129,7 +132,7 @@ def find_param_type(
             f"{param_error_hint} has unsupported type annotation {annotation}, "
             f"possible types are {param.allow_types}"
         )
-    return annotation, False
+    return annotation, optional
 
 
 def find_params(
@@ -141,24 +144,27 @@ def find_params(
     param_inputs = []
 
     for param_name in param_names:
-        param = signature.parameters[param_name]
-        if param.default is None or param.default == signature.empty:
+        input_argument = signature.parameters[param_name]
+        if input_argument.default is None or input_argument.default == signature.empty:
             continue
-        if not isinstance(param.default, OpParam):
+        if not isinstance(input_argument.default, OpParam):
             continue
-        default: OpParam = param.default
-        if default.kind != kind:
+        param: OpParam = input_argument.default
+        if param.kind != kind:
             continue
+        error_start = f"{param.kind.capitalize()} parameter {input_argument.name}"
         annotation, optional = find_param_type(
-            param=default,
-            annotation=param.annotation,
+            param=param,
+            annotation=input_argument.annotation,
             empty_val=signature.empty,
-            param_error_hint=f"{default.kind.capitalize()} parameter {param.name}",
+            param_error_hint=error_start,
         )
+        if optional and param.has_default_value and not param.has_none_as_default_value:
+            warnings.warn(f"{error_start} is type hinted as optional, but will never be None because of default value", FalconSwoopConfigWarning)
         param_input = OpApiParamInput(
             name=param_name,
             annotation=annotation,
-            info=default.field_info,
+            info=param.field_info,
             optional=optional,
         )
         param_inputs.append(param_input)

@@ -5,6 +5,7 @@ from typing import Any, Sequence, TypedDict
 from typing_extensions import Unpack, NotRequired
 
 from pydantic import Field
+from pydantic.fields import FieldInfo
 
 
 @unique
@@ -41,10 +42,19 @@ class OpParam:
         allow_optional: bool,
         field_kwargs: FieldKwArgs,
     ):
-        self.field_info = Field(**field_kwargs)
+        self.field_info: FieldInfo = Field(**field_kwargs)
         self.kind = kind
         self.allow_types = allow_types
         self.allow_optional = allow_optional
+
+    @property
+    def has_default_value(self) -> bool:
+        default_type = type(self.field_info.default)
+        return default_type.__name__ != "PydanticUndefinedType"
+
+    @property
+    def has_none_as_default_value(self) -> bool:
+        return self.field_info.default is None
 
 
 def header_param(**kwargs: Unpack[FieldKwArgs]) -> Any:
