@@ -6,8 +6,8 @@ from typing_extensions import Self, Unpack
 from pydantic import create_model, BaseModel
 from pydantic.fields import FieldInfo
 
-from falcon_api.error import FalconApiConfigError
-from falcon_api.param import Param, ParamKind
+from falcon_swoop.error import FalconSwoopConfigError
+from falcon_swoop.param import Param, ParamKind
 
 
 HttpMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]  # , "OPTIONS"]
@@ -52,7 +52,7 @@ class OpRequestDoc:
 
     def __post_init__(self) -> None:
         if len(self.by_mime) == 0:
-            raise FalconApiConfigError("At least one mime request type needs to be specified")
+            raise FalconSwoopConfigError("At least one mime request type needs to be specified")
 
 
 @dataclass
@@ -62,7 +62,7 @@ class OpResponseDoc:
 
     # def __post_init__(self) -> None:
     #     if len(self.by_mime) == 0:
-    #         raise FalconApiConfigError("At least one mime response type needs to be specified")
+    #         raise FalconSwoopConfigError("At least one mime response type needs to be specified")
 
 
 OpResponseDocByHttpCode = dict[int, OpResponseDoc]
@@ -118,12 +118,12 @@ def find_params(
         if default.kind != kind:
             continue
         if param.annotation is None:
-            raise FalconApiConfigError(
+            raise FalconSwoopConfigError(
                 f"{default.kind.capitalize()} parameter {param.name} requires type annotation, "
                 f"possible types are {default.allowed_types}"
             )
         if param.annotation not in default.allowed_types:
-            raise FalconApiConfigError(
+            raise FalconSwoopConfigError(
                 f"{default.kind.capitalize()} parameter {param.name} has unsupported type "
                 f"annotation {param.annotation}, possible types are {default.allowed_types}"
             )
@@ -186,14 +186,16 @@ def inspect_operation(
         param = signature.parameters[input_params.pop()]
         param_type = param.annotation
         if not issubclass(param_type, BaseModel):
-            raise FalconApiConfigError(f"Parameter type of {param.name} needs to be a subclass of {BaseModel.__name__}")
+            raise FalconSwoopConfigError(
+                f"Parameter type of {param.name} needs to be a subclass of {BaseModel.__name__}"
+            )
         op_input = OpApiModelInput(param.name, param_type)
     elif len(input_params) > 1:
-        raise FalconApiConfigError("More than 1 parameter found")
+        raise FalconSwoopConfigError("More than 1 parameter found")
 
     if signature.return_annotation not in (signature.empty, None):
         if not issubclass(signature.return_annotation, BaseModel):
-            raise FalconApiConfigError(f"Return type needs to be a subclass of {BaseModel.__name__}")
+            raise FalconSwoopConfigError(f"Return type needs to be a subclass of {BaseModel.__name__}")
         op_output_type = signature.return_annotation
 
     # default_accept: list[MimeType] = ["application/json"]
@@ -229,7 +231,7 @@ def inspect_operation(
     response_docs = {resp_status: OpResponseDoc(description=resp_desc, by_mime=response_type_by_mime)}
     more_response_docs = kwargs.get("more_response_docs", {})
     if resp_status in more_response_docs:
-        raise FalconApiConfigError(
+        raise FalconSwoopConfigError(
             f"Response docs for default HTTP status code {resp_status} are generated, cannot be provided"
         )
     response_docs.update(more_response_docs)
@@ -292,7 +294,7 @@ def inspect_operation_doc(
 
     method = func_name_method_mapping.get(func.__name__)
     if method is None:
-        raise FalconApiConfigError(
+        raise FalconSwoopConfigError(
             f"The annotated method needs to have one of "
             f"the falcon request methods: {', '.join(func_name_method_mapping.keys())}"
         )
