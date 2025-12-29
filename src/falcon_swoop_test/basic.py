@@ -1,4 +1,5 @@
-from typing import Any
+from enum import Enum, unique
+from typing import Any, Literal
 
 import falcon
 import pytest
@@ -8,6 +9,13 @@ from falcon_swoop import ApiBaseResource, operation, operation_doc, header_param
 from falcon_swoop.openapi.spec import OpenApiOperation
 from falcon_swoop.operation import HttpMethod
 from falcon_swoop_test.util import SimulatedResource
+
+
+@unique
+class WeatherLevel(str, Enum):
+    LOCAL = "LOCAL"
+    REGIONAL = "REGIONAL"
+    GLOBAL = "GLOBAL"
 
 
 class BasicInput(BaseModel):
@@ -77,6 +85,20 @@ class BasicResource2(ApiBaseResource):
         resp.text = "deleted"
 
 
+class BasicResource3(ApiBaseResource):
+
+    def __init__(self) -> None:
+        super().__init__("/weather")
+
+    @operation(method="GET")
+    def get_weather(
+        self,
+        # mode: WeatherLevel = query_param(),
+        # unit: Literal["C", "F"] = query_param()
+    ) -> BasicOutput:
+        return BasicOutput(data={"temperature": 20})
+
+
 @pytest.fixture(scope="module")
 def resource1() -> SimulatedResource:
     return SimulatedResource(BasicResource1())
@@ -85,6 +107,11 @@ def resource1() -> SimulatedResource:
 @pytest.fixture(scope="module")
 def resource2() -> SimulatedResource:
     return SimulatedResource(BasicResource2())
+
+
+@pytest.fixture(scope="module")
+def resource3() -> SimulatedResource:
+    return SimulatedResource(BasicResource3())
 
 
 def test_missing_input_raises_400(resource1: SimulatedResource) -> None:
@@ -101,6 +128,7 @@ def test_missing_input_raises_400(resource1: SimulatedResource) -> None:
     [
         ["resource1", {"PUT", "PATCH", "DELETE"}, {"GET", "POST", "OPTIONS"}],
         ["resource2", {"POST"}, {"GET", "PUT", "PATCH", "DELETE", "OPTIONS"}],
+        ["resource3", {"POST", "PUT", "PATCH", "DELETE"}, {"GET", "OPTIONS"}],
     ],
 )
 def test_unused_operation_raises_405(
@@ -189,7 +217,11 @@ def test_optional_input_model(resource2: SimulatedResource) -> None:
 
 @pytest.mark.parametrize(
     "resource_fixture_name, exp_op_ids",
-    [["resource1", {"getSomething", "postSomething"}], ["resource2", {"getCityData", "putCityData", "updateCityData"}]],
+    [
+        ["resource1", {"getSomething", "postSomething"}],
+        ["resource2", {"getCityData", "putCityData", "updateCityData"}],
+        ["resource3", {"getWeather"}],
+    ],
 )
 def test_openapi_generation(resource_fixture_name: str, exp_op_ids: set[str], request: pytest.FixtureRequest) -> None:
     sim_res: SimulatedResource = request.getfixturevalue(resource_fixture_name)

@@ -1,3 +1,5 @@
+from enum import Enum, unique
+
 import pytest
 from pydantic import BaseModel
 
@@ -6,6 +8,7 @@ from falcon_swoop import (
     FalconSwoopConfigError,
     FalconSwoopConfigWarning,
     operation,
+    header_param,
     path_param,
     query_param,
 )
@@ -135,6 +138,26 @@ def test_config_error_for_optional_path_parameter() -> None:
                 return DummyModel()
 
 
+def test_config_error_for_normal_enum() -> None:
+    with pytest.raises(FalconSwoopConfigError, match="Query parameter mode cannot be an enum, only string enums (class MyEnum(str, Enum)) are possible"):
+
+        @unique
+        class SummaryMode(Enum):
+            SHORT = "SHORT"
+            FULL = "FULL"
+
+        class Resource(ApiBaseResource):
+            def __init__(self) -> None:
+                super().__init__("/summary")
+
+            @operation(method="GET")
+            def get(
+                self,
+                mode: SummaryMode = header_param(),
+            ) -> DummyModel:
+                return DummyModel()
+
+
 def test_config_warning_for_optional_parameter_with_default() -> None:
     with pytest.warns(
         FalconSwoopConfigWarning, match="Query parameter max_size is type hinted as optional, but will never be None"
@@ -146,5 +169,19 @@ def test_config_warning_for_optional_parameter_with_default() -> None:
                 self,
                 min_size: int | None = query_param(alias="minSize", default=None),
                 max_size: int | None = query_param(alias="maxSize", default=10),
+            ) -> DummyModel:
+                return DummyModel()
+
+
+def test_config_warning_for_header_case_insensitivity() -> None:
+    with pytest.warns(
+        FalconSwoopConfigWarning, match="Header parameter accept (or its alias) has mixed case, but HTTP headers are case insensitive, it can be defined completely lowercase or uppercase"
+    ):
+
+        class Resource(ApiBaseResource):
+            @operation(method="GET")
+            def get(
+                self,
+                accept: str | None = header_param(alias="Accept", default=None),
             ) -> DummyModel:
                 return DummyModel()
