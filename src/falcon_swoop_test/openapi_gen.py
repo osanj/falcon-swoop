@@ -174,12 +174,12 @@ def test_optional_input_marked_accordingly(gen_result: OpenApiGeneratorResult) -
 
     post = spec.paths[Item.PATH].post
     assert post is not None
-    assert post.request_body is not None
+    assert isinstance(post.request_body, OpenApiRequestBody)
     assert post.request_body.required
 
     patch = spec.paths[Item.PATH].patch
     assert patch is not None
-    assert patch.request_body is not None
+    assert isinstance(patch.request_body, OpenApiRequestBody)
     assert not patch.request_body.required
 
 

@@ -1,8 +1,8 @@
 import inspect
 import warnings
 from dataclasses import dataclass, field as dataclass_field
-from typing import Any, Callable, Literal, NotRequired, TypedDict
-from typing_extensions import Self, Unpack
+from typing import Any, Callable, Literal, TypedDict
+from typing_extensions import NotRequired, Self, Unpack
 
 from pydantic import create_model, BaseModel
 from pydantic.fields import FieldInfo
