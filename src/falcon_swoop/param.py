@@ -37,14 +37,16 @@ OpParamType = type[bool | int | float | str]
 class OpParam:
     def __init__(
         self,
-        kind: OpParamKind,
-        allow_types: Sequence[OpParamType],
-        allow_optional: bool,
         field_kwargs: FieldKwArgs,
+        kind: OpParamKind,
+        allow_types: Sequence[OpParamType] = (bool, int, float, str),
+        allow_str_enum: bool = True,
+        allow_optional: bool = True,
     ):
         self.field_info: FieldInfo = Field(**field_kwargs)
         self.kind = kind
         self.allow_types = allow_types
+        self.allow_str_enum = allow_str_enum
         self.allow_optional = allow_optional
 
     @property
@@ -58,12 +60,12 @@ class OpParam:
 
 
 def header_param(**kwargs: Unpack[FieldKwArgs]) -> Any:
-    return OpParam(OpParamKind.HEADER, (bool, int, float, str), True, kwargs)
+    return OpParam(kwargs, OpParamKind.HEADER)
 
 
 def query_param(**kwargs: Unpack[FieldKwArgs]) -> Any:
-    return OpParam(OpParamKind.QUERY, (bool, int, float, str), True, kwargs)
+    return OpParam(kwargs, OpParamKind.QUERY)
 
 
 def path_param(**kwargs: Unpack[FieldKwArgs]) -> Any:
-    return OpParam(OpParamKind.PATH, (int, str), False, kwargs)
+    return OpParam(kwargs, OpParamKind.PATH, allow_types=(int, str), allow_optional=False)

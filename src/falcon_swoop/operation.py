@@ -1,6 +1,7 @@
 import inspect
 import warnings
 from dataclasses import dataclass, field as dataclass_field
+from enum import Enum
 from typing import Any, Callable, Literal, TypedDict
 from typing_extensions import NotRequired, Self, Unpack
 
@@ -143,7 +144,12 @@ def find_param_type(
         else:
             raise FalconSwoopConfigError(f"{param_error_hint} cannot be a union")
 
-    if annotation not in param.allow_types:
+    if param.allow_str_enum and issubclass(annotation, Enum):
+        if not issubclass(annotation, str):
+            raise FalconSwoopConfigError(
+                f"{param_error_hint} must be a string enum to be usable, either subclass from str and Enum or use StrEnum"
+            )
+    elif annotation not in param.allow_types:
         raise FalconSwoopConfigError(
             f"{param_error_hint} has unsupported type annotation {annotation}, "
             f"possible types are {param.allow_types}"
