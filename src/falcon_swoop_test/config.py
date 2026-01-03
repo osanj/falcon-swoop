@@ -139,7 +139,10 @@ def test_config_error_for_optional_path_parameter() -> None:
 
 
 def test_config_error_for_normal_enum() -> None:
-    with pytest.raises(FalconSwoopConfigError, match="Query parameter mode cannot be an enum, only string enums (class MyEnum(str, Enum)) are possible"):
+    with pytest.raises(
+        FalconSwoopConfigError,
+        match="Query parameter mode cannot be an enum, only string enums (class MyEnum(str, Enum)) are possible",
+    ):
 
         @unique
         class SummaryMode(Enum):
@@ -153,7 +156,7 @@ def test_config_error_for_normal_enum() -> None:
             @operation(method="GET")
             def get(
                 self,
-                mode: SummaryMode = header_param(),
+                mode: SummaryMode = query_param(),
             ) -> DummyModel:
                 return DummyModel()
 
@@ -175,7 +178,8 @@ def test_config_warning_for_optional_parameter_with_default() -> None:
 
 def test_config_warning_for_header_case_insensitivity() -> None:
     with pytest.warns(
-        FalconSwoopConfigWarning, match="Header parameter accept (or its alias) has mixed case, but HTTP headers are case insensitive, it can be defined completely lowercase or uppercase"
+        FalconSwoopConfigWarning,
+        match="Header parameter accept has mixed case \(see alias\), but Header parameters are case insensitive",
     ):
 
         class Resource(ApiBaseResource):

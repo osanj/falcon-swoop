@@ -103,31 +103,32 @@ class ApiBaseResource:
         return self.__context
 
     def __collect_typed_kwargs(
-        self, input_kwargs_: Mapping[str, Any], param_input: OpFuncParamInput | None, case_sensitive: bool = True
+        self,
+        input_kwargs_: Mapping[str, Any],
+        func_input: OpFuncParamInput | None,
     ) -> dict[str, Any]:
-        if param_input is None:
+        if func_input is None:
             return {}
         input_kwargs = dict(input_kwargs_)
-        model_type = param_input.model_type
         input_name: str
-        if not case_sensitive:
+        if not func_input.case_sensitive:
             _input_kwargs = {k.lower(): v for k, v in input_kwargs.items()}
             if len(_input_kwargs) != len(input_kwargs):
                 warnings.warn("Unexpectedly lost data due to lowercasing", FalconSwoopWarning)
             _input_kwargs2 = {}
-            for name, info in model_type.model_fields.items():
-                input_name = info.alias or name
+            for name, param_input in func_input.param_by_name.items():
+                input_name = param_input.input_name
                 input_name_lowered = input_name.lower()
                 if input_name_lowered in _input_kwargs:
                     _input_kwargs2[input_name] = _input_kwargs[input_name_lowered]
             input_kwargs = _input_kwargs2
-        for name, info in model_type.model_fields.items():
-            input_name = info.alias or name
-            optional = param_input.param_by_name[name].optional
-            if input_name not in input_kwargs and optional:
+
+        for name, param_input in func_input.param_by_name.items():
+            input_name = param_input.input_name
+            if input_name not in input_kwargs and param_input.optional:
                 input_kwargs[input_name] = None
         try:
-            model: BaseModel = model_type(**input_kwargs)
+            model: BaseModel = func_input.model_type(**input_kwargs)
         except ValidationError as e:
             raise falcon.HTTPBadRequest(description=str(e))
         return model.model_dump(by_alias=False)
@@ -151,7 +152,7 @@ class ApiBaseResource:
         kwargs = {}
         kwargs.update(self.__collect_typed_kwargs(req.params, spec.query_input))
         kwargs.update(self.__collect_typed_kwargs(path_params, spec.path_input))
-        kwargs.update(self.__collect_typed_kwargs(req.headers, spec.header_input, case_sensitive=False))
+        kwargs.update(self.__collect_typed_kwargs(req.headers, spec.header_input))
 
         if spec.func_input is not None:
             if spec.func_input.optional:

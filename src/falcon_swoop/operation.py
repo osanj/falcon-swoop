@@ -32,6 +32,14 @@ class OpApiParamInput:
     info: FieldInfo
     optional: bool = False  # TODO: replace with property that interprets annotation_orig?
 
+    @property
+    def input_name(self) -> str:
+        return self.info.alias or self.name
+
+    @property
+    def uses_alias(self) -> bool:
+        return self.info.alias is not None
+
 
 OpExample = BaseModel | dict[str, Any] | str
 OpType = type[BaseModel] | type[str] | None
@@ -75,6 +83,7 @@ OpResponseDocByHttpCode = dict[int, OpResponseDoc]
 class OpFuncParamInput:
     model_type: type[BaseModel]
     param_by_name: dict[str, OpApiParamInput]
+    case_sensitive: bool
 
 
 @dataclass
@@ -147,6 +156,7 @@ def find_params(
     param_names: set[str],
     kind: OpParamKind,
     operation_id: str,
+    case_sensitive: bool = True,
 ) -> tuple[OpFuncParamInput | None, set[str]]:
     param_inputs = []
 
@@ -159,7 +169,8 @@ def find_params(
         param: OpParam = input_argument.default
         if param.kind != kind:
             continue
-        error_start = f"{param.kind.capitalize()} parameter {input_argument.name}"
+        param_kind_str = param.kind.capitalize()
+        error_start = f"{param_kind_str} parameter {input_argument.name}"
         annotation, optional = find_param_type(
             param=param,
             annotation=input_argument.annotation,
@@ -178,18 +189,27 @@ def find_params(
             info=param.field_info,
             optional=optional,
         )
+        if not case_sensitive:
+            input_name = param_input.input_name
+            if not (input_name.islower() or input_name.isupper()):
+                alias_hint = " (see alias)" if param_input.uses_alias else ""
+                warnings.warn(
+                    f"{error_start} has mixed case{alias_hint}, but {param_kind_str} parameters are "
+                    "case insensitive, it's recommend to use either lowercase or uppercase only",
+                    FalconSwoopConfigWarning,
+                )
         param_inputs.append(param_input)
 
     if len(param_inputs) == 0:
         return None, set()
 
-    # TODO: add warning for header parameters that seem to imply case sensitivity
     used_param_names = {pi.name for pi in param_inputs}
     param_model_name = f"{operation_id}{kind.lower().capitalize()}Params"
     param_type = create_model(
         param_model_name, **{pi.name: (pi.annotation_orig, pi.info) for pi in param_inputs}
     )  # type: ignore[call-overload]
-    return OpFuncParamInput(param_type, {pi.name: pi for pi in param_inputs}), used_param_names
+    func_input = OpFuncParamInput(param_type, {pi.name: pi for pi in param_inputs}, case_sensitive)
+    return func_input, used_param_names
 
 
 class OperationKwArgs(TypedDict):
@@ -218,13 +238,13 @@ def inspect_operation(
     signature = inspect.signature(func)
     op_input = None
     op_output_type = None
-    operation_id = get_operation_id_or_default(kwargs.get("operation_id"), func)
+    op_id = get_operation_id_or_default(kwargs.get("operation_id"), func)
 
     input_params = signature.parameters.keys() - {"self"}
 
-    header_input, header_params = find_params(signature, input_params, OpParamKind.HEADER, operation_id)
-    query_input, query_params = find_params(signature, input_params, OpParamKind.QUERY, operation_id)
-    path_input, path_params = find_params(signature, input_params, OpParamKind.PATH, operation_id)
+    header_input, header_params = find_params(signature, input_params, OpParamKind.HEADER, op_id, case_sensitive=False)
+    query_input, query_params = find_params(signature, input_params, OpParamKind.QUERY, op_id)
+    path_input, path_params = find_params(signature, input_params, OpParamKind.PATH, op_id)
 
     input_params.difference_update(header_params | query_params | path_params)
 
@@ -297,7 +317,7 @@ def inspect_operation(
 
     return OpInfoWithSpec(
         method=method,
-        operation_id=operation_id,
+        operation_id=op_id,
         tags=kwargs.get("tags", []),
         deprecated=kwargs.get("deprecated", False),
         request_doc=request_doc,
