@@ -5,10 +5,11 @@ from typing import Any, Sequence, TypedDict
 from typing_extensions import Unpack, NotRequired
 
 from pydantic import Field
+from pydantic.fields import FieldInfo
 
 
 @unique
-class ParamKind(str, Enum):
+class OpParamKind(str, Enum):
     HEADER = "HEADER"
     QUERY = "QUERY"
     PATH = "PATH"
@@ -30,25 +31,39 @@ class FieldKwArgs(TypedDict):
     # TODO: add more?
 
 
-class Param:
+OpParamType = type[bool | int | float | str]
+
+
+class OpParam:
     def __init__(
         self,
-        kind: ParamKind,
-        allowed_types: Sequence[type[bool | int | float | str]],
         field_kwargs: FieldKwArgs,
+        kind: OpParamKind,
+        allow_types: Sequence[OpParamType] = (bool, int, float, str),
+        allow_optional: bool = True,
     ):
-        self.field_info = Field(**field_kwargs)
+        self.field_info: FieldInfo = Field(**field_kwargs)
         self.kind = kind
-        self.allowed_types = allowed_types
+        self.allow_types = allow_types
+        self.allow_optional = allow_optional
+
+    @property
+    def has_default_value(self) -> bool:
+        default_type = type(self.field_info.default)
+        return default_type.__name__ != "PydanticUndefinedType"
+
+    @property
+    def has_none_as_default_value(self) -> bool:
+        return self.field_info.default is None
 
 
 def header_param(**kwargs: Unpack[FieldKwArgs]) -> Any:
-    return Param(ParamKind.HEADER, (bool, int, float, str), kwargs)
+    return OpParam(kwargs, OpParamKind.HEADER)
 
 
 def query_param(**kwargs: Unpack[FieldKwArgs]) -> Any:
-    return Param(ParamKind.QUERY, (bool, int, float, str), kwargs)
+    return OpParam(kwargs, OpParamKind.QUERY)
 
 
 def path_param(**kwargs: Unpack[FieldKwArgs]) -> Any:
-    return Param(ParamKind.PATH, (int, str), kwargs)
+    return OpParam(kwargs, OpParamKind.PATH, allow_types=(int, str), allow_optional=False)

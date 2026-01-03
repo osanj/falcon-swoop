@@ -2,6 +2,7 @@ from typing import Any
 
 import falcon
 from falcon.testing import TestClient, Result
+from pydantic import BaseModel
 
 from falcon_swoop import ApiBaseResource, OpenApiGenerator, OpenApiGeneratorResult, OpenApiGeneratorSettings
 from falcon_swoop.operation import HttpMethod
@@ -16,30 +17,51 @@ class SimulatedResource:
         self.app = app
         self.client = falcon.testing.TestClient(self.app)
 
+    @property
+    def plain_route(self) -> str:
+        return self.resource.api_route.plain
+
+    def format_route(self, **kwargs: Any) -> str:
+        return self.resource.api_route.format(**kwargs)
+
     def __get_path(self, kwargs: dict[str, Any]) -> str:
-        default_path = self.resource.api_route.plain
-        return str(kwargs.pop("path", default_path))
+        return str(kwargs.pop("path", self.plain_route))
+
+    def __convert_model_to_json(self, kwargs: dict[str, Any]) -> dict[str, Any]:
+        key_json = "json"
+        key_model = "json_model"
+        if key_json in kwargs and key_model in kwargs:
+            raise RuntimeError(f"The keyword argument {key_model} cannot be used if {key_json} is also used")
+        model_input = kwargs.pop(key_model, None)
+        if model_input is not None:
+            assert isinstance(model_input, BaseModel), f"{key_model} argument must be {BaseModel.__name__}"
+            kwargs[key_json] = model_input.model_dump(by_alias=True)
+        return kwargs
 
     def simulate_request(self, method: HttpMethod, **kwargs: Any) -> Result:
-        return self.client.simulate_request(method, path=self.__get_path(kwargs), **kwargs)
+        return self.client.simulate_request(
+            method,
+            path=self.__get_path(kwargs),
+            **self.__convert_model_to_json(kwargs),
+        )
 
     def simulate_get(self, **kwargs: Any) -> Result:
-        return self.client.simulate_get(self.__get_path(kwargs), **kwargs)
+        return self.client.simulate_get(self.__get_path(kwargs), **self.__convert_model_to_json(kwargs))
 
     def simulate_post(self, **kwargs: Any) -> Result:
-        return self.client.simulate_post(self.__get_path(kwargs), **kwargs)
+        return self.client.simulate_post(self.__get_path(kwargs), **self.__convert_model_to_json(kwargs))
 
     def simulate_put(self, **kwargs: Any) -> Result:
-        return self.client.simulate_put(self.__get_path(kwargs), **kwargs)
+        return self.client.simulate_put(self.__get_path(kwargs), **self.__convert_model_to_json(kwargs))
 
     def simulate_patch(self, **kwargs: Any) -> Result:
-        return self.client.simulate_patch(self.__get_path(kwargs), **kwargs)
+        return self.client.simulate_patch(self.__get_path(kwargs), **self.__convert_model_to_json(kwargs))
 
     def simulate_delete(self, **kwargs: Any) -> Result:
-        return self.client.simulate_delete(self.__get_path(kwargs), **kwargs)
+        return self.client.simulate_delete(self.__get_path(kwargs), **self.__convert_model_to_json(kwargs))
 
     def simulate_head(self, **kwargs: Any) -> Result:
-        return self.client.simulate_head(self.__get_path(kwargs), **kwargs)
+        return self.client.simulate_head(self.__get_path(kwargs), **self.__convert_model_to_json(kwargs))
 
     def generate_openapi(
         self,

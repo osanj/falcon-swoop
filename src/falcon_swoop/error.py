@@ -8,3 +8,11 @@ class FalconSwoopConfigError(FalconSwoopError):
 
 class FalconSwoopDocGenerationError(FalconSwoopError):
     pass
+
+
+class FalconSwoopWarning(Warning):
+    pass
+
+
+class FalconSwoopConfigWarning(FalconSwoopWarning):
+    pass

@@ -1,7 +1,17 @@
+from enum import Enum, unique
+
 import pytest
 from pydantic import BaseModel
 
-from falcon_swoop import ApiBaseResource, operation, FalconSwoopConfigError, path_param, query_param
+from falcon_swoop import (
+    ApiBaseResource,
+    FalconSwoopConfigError,
+    FalconSwoopConfigWarning,
+    operation,
+    header_param,
+    path_param,
+    query_param,
+)
 
 
 class DummyModel(BaseModel):
@@ -91,4 +101,110 @@ def test_config_error_for_complex_param_type() -> None:
         class Resource(ApiBaseResource):
             @operation(method="GET")
             def get(self, query_params: dict[str, int] = query_param()) -> DummyModel:
+                return DummyModel()
+
+
+def test_config_error_for_missing_param_type() -> None:
+    with pytest.raises(FalconSwoopConfigError, match="Query parameter param requires type annotation"):
+
+        class Resource(ApiBaseResource):
+            @operation(method="GET")
+            def get(self, param=query_param()) -> DummyModel:  # type: ignore[no-untyped-def]
+                return DummyModel()
+
+
+def test_config_error_for_optional_return_value() -> None:
+    with pytest.raises(FalconSwoopConfigError, match="Return type cannot be a union or optional"):
+
+        class Resource(ApiBaseResource):
+            @operation(method="GET")
+            def get(self) -> DummyModel | None:
+                return DummyModel()
+
+
+def test_config_error_for_optional_path_parameter() -> None:
+    with pytest.raises(FalconSwoopConfigError, match="Path parameter resource_id cannot be optional"):
+
+        class Resource(ApiBaseResource):
+            def __init__(self) -> None:
+                super().__init__("/resource/{resourceId}")
+
+            @operation(method="GET")
+            def get(
+                self,
+                resource_id: int | None = path_param(alias="resourceId"),
+                min_size: int | None = query_param(alias="minSize"),
+            ) -> DummyModel:
+                return DummyModel()
+
+
+def test_config_error_for_normal_enum() -> None:
+    with pytest.raises(
+        FalconSwoopConfigError,
+        match="Query parameter mode must be a string enum to be usable, either subclass from str and Enum or use StrEnum",
+    ):
+
+        @unique
+        class SummaryMode(Enum):
+            SHORT = "SHORT"
+            FULL = "FULL"
+
+        class Resource(ApiBaseResource):
+            def __init__(self) -> None:
+                super().__init__("/summary")
+
+            @operation(method="GET")
+            def get(
+                self,
+                mode: SummaryMode = query_param(),
+            ) -> DummyModel:
+                return DummyModel()
+
+
+def test_config_error_for_bad_literal() -> None:
+    with pytest.raises(
+        FalconSwoopConfigError,
+        match="Query parameter meta must only have literal values of type",
+    ):
+        from typing import Literal
+
+        class Resource(ApiBaseResource):
+            def __init__(self) -> None:
+                super().__init__("/resource")
+
+            @operation(method="GET")
+            def get(
+                self,
+                meta: Literal[b"bad", "fine"] = query_param(),
+            ) -> DummyModel:
+                return DummyModel()
+
+
+def test_config_warning_for_optional_parameter_with_default() -> None:
+    with pytest.warns(
+        FalconSwoopConfigWarning, match="Query parameter max_size is type hinted as optional, but will never be None"
+    ):
+
+        class Resource(ApiBaseResource):
+            @operation(method="GET")
+            def get(
+                self,
+                min_size: int | None = query_param(alias="minSize", default=None),
+                max_size: int | None = query_param(alias="maxSize", default=10),
+            ) -> DummyModel:
+                return DummyModel()
+
+
+def test_config_warning_for_header_case_insensitivity() -> None:
+    with pytest.warns(
+        FalconSwoopConfigWarning,
+        match="Header parameter accept has mixed case \\(see alias\\), but Header parameters are case insensitive",
+    ):
+
+        class Resource(ApiBaseResource):
+            @operation(method="GET")
+            def get(
+                self,
+                accept: str | None = header_param(alias="Accept", default=None),
+            ) -> DummyModel:
                 return DummyModel()

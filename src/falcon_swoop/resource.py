@@ -6,8 +6,8 @@ from typing import Any, Generator, Mapping
 import falcon
 from pydantic import BaseModel, ValidationError
 
-from falcon_swoop.error import FalconSwoopConfigError
-from falcon_swoop.operation import ATTR_OPERATION, HttpMethod, OpInfo, OpInfoWithSpec
+from falcon_swoop.error import FalconSwoopConfigError, FalconSwoopWarning
+from falcon_swoop.operation import ATTR_OPERATION, HttpMethod, OpInfo, OpInfoWithSpec, OpFuncParamInput
 from falcon_swoop.route import ApiRoute
 
 
@@ -50,7 +50,10 @@ class ApiBaseResource:
             path_input = op.func_spec.path_input
             if path_input is not None:
                 path_param_act = set(
-                    [name if info.alias is None else info.alias for name, info in path_input.model_fields.items()]
+                    [
+                        name if info.alias is None else info.alias
+                        for name, info in path_input.model_type.model_fields.items()
+                    ]
                 )
 
             missing = path_param_exp.difference(path_param_act)
@@ -100,23 +103,32 @@ class ApiBaseResource:
         return self.__context
 
     def __collect_typed_kwargs(
-        self, input_kwargs: Mapping[str, Any], model_type: type[BaseModel] | None, case_sensitive: bool = True
+        self,
+        input_kwargs_: Mapping[str, Any],
+        func_input: OpFuncParamInput | None,
     ) -> dict[str, Any]:
-        if model_type is None:
+        if func_input is None:
             return {}
-        if not case_sensitive:
+        input_kwargs = dict(input_kwargs_)
+        input_name: str
+        if not func_input.case_sensitive:
             _input_kwargs = {k.lower(): v for k, v in input_kwargs.items()}
             if len(_input_kwargs) != len(input_kwargs):
-                warnings.warn("Unexpectedly lost data due to lowercasing")
+                warnings.warn("Unexpectedly lost data due to lowercasing", FalconSwoopWarning)
             _input_kwargs2 = {}
-            for name, info in model_type.model_fields.items():
-                input_name: str = info.alias or name
+            for name, param_input in func_input.param_by_name.items():
+                input_name = param_input.input_name
                 input_name_lowered = input_name.lower()
                 if input_name_lowered in _input_kwargs:
                     _input_kwargs2[input_name] = _input_kwargs[input_name_lowered]
             input_kwargs = _input_kwargs2
+
+        for name, param_input in func_input.param_by_name.items():
+            input_name = param_input.input_name
+            if input_name not in input_kwargs and param_input.optional:
+                input_kwargs[input_name] = None
         try:
-            model: BaseModel = model_type(**input_kwargs)
+            model: BaseModel = func_input.model_type(**input_kwargs)
         except ValidationError as e:
             raise falcon.HTTPBadRequest(description=str(e))
         return model.model_dump(by_alias=False)
@@ -140,10 +152,18 @@ class ApiBaseResource:
         kwargs = {}
         kwargs.update(self.__collect_typed_kwargs(req.params, spec.query_input))
         kwargs.update(self.__collect_typed_kwargs(path_params, spec.path_input))
-        kwargs.update(self.__collect_typed_kwargs(req.headers, spec.header_input, case_sensitive=False))
+        kwargs.update(self.__collect_typed_kwargs(req.headers, spec.header_input))
 
         if spec.func_input is not None:
-            data = spec.func_input.model_type(**req.get_media())
+            if spec.func_input.optional:
+                media = req.get_media(default_when_empty=None)
+                if media is None:
+                    data = None
+                else:
+                    data = spec.func_input.model_type(**media)
+            else:
+                # calling req.get_media() again to maintain default falcon behavior for empty body when JSON is expected
+                data = spec.func_input.model_type(**req.get_media())
             kwargs[spec.func_input.name] = data
 
         data_output = op.func(self, **kwargs)

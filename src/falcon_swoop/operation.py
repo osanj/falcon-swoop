@@ -1,14 +1,16 @@
 import inspect
+import warnings
 from dataclasses import dataclass, field as dataclass_field
-from typing import Any, Callable, Literal, NotRequired, TypedDict
-from typing_extensions import Self, Unpack
+from enum import Enum
+from typing import Any, Callable, Literal, TypedDict
+from typing_extensions import NotRequired, Self, Unpack
 
 from pydantic import create_model, BaseModel
 from pydantic.fields import FieldInfo
 
-from falcon_swoop.error import FalconSwoopConfigError
-from falcon_swoop.param import Param, ParamKind
-
+from falcon_swoop.error import FalconSwoopConfigError, FalconSwoopConfigWarning
+from falcon_swoop.param import OpParam, OpParamKind, OpParamType
+from falcon_swoop.type_util import is_union_type, safe_issubclass, unpack_optional_type, unpack_literal_type
 
 HttpMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]  # , "OPTIONS"]
 MimeType = Literal["application/json"]
@@ -25,9 +27,18 @@ class OpApiModelInput:
 @dataclass
 class OpApiParamInput:
     name: str
-    annotation: type[bool | int | float | str]
+    annotation: OpParamType  # TODO: remove?
+    annotation_orig: Any
     info: FieldInfo
-    optional: bool = False
+    optional: bool = False  # TODO: replace with property that interprets annotation_orig?
+
+    @property
+    def input_name(self) -> str:
+        return self.info.alias or self.name
+
+    @property
+    def uses_alias(self) -> bool:
+        return self.info.alias is not None
 
 
 OpExample = BaseModel | dict[str, Any] | str
@@ -69,11 +80,18 @@ OpResponseDocByHttpCode = dict[int, OpResponseDoc]
 
 
 @dataclass
+class OpFuncParamInput:
+    model_type: type[BaseModel]
+    param_by_name: dict[str, OpApiParamInput]
+    case_sensitive: bool
+
+
+@dataclass
 class OpFuncSpec:
     func_input: OpApiModelInput | None
-    query_input: type[BaseModel] | None
-    path_input: type[BaseModel] | None
-    header_input: type[BaseModel] | None
+    query_input: OpFuncParamInput | None
+    path_input: OpFuncParamInput | None
+    header_input: OpFuncParamInput | None
     # allow raw input?
     # accept mime type?
     func_output_model: type[BaseModel] | None
@@ -103,47 +121,107 @@ class OpInfoWithSpec(OpInfo):
     func_spec: OpFuncSpec
 
 
+def find_param_type(
+    param: OpParam,
+    annotation: Any,
+    empty_val: Any,
+    param_error_hint: str,
+) -> tuple[OpParamType, bool]:
+    optional = False
+    if annotation == empty_val:
+        raise FalconSwoopConfigError(
+            f"{param_error_hint} requires type annotation, possible types are {param.allow_types}"
+        )
+    if is_union_type(annotation):
+        unpacked_opt = unpack_optional_type(annotation)
+        if unpacked_opt.is_optional_for_single_type:
+            if param.allow_optional:
+                annotation = unpacked_opt.types_without_none[0]
+                optional = True
+            else:
+                raise FalconSwoopConfigError(f"{param_error_hint} cannot be optional")
+        else:
+            raise FalconSwoopConfigError(f"{param_error_hint} cannot be a union")
+
+    unpacked_lit = unpack_literal_type(annotation)
+    if unpacked_lit.is_literal:
+        allowed_literal_types = (str, int, bool)
+        if not unpacked_lit.has_only_values_of_type(allowed_literal_types):
+            raise FalconSwoopConfigError(
+                f"{param_error_hint} must only have literal values of type {allowed_literal_types}"
+            )
+    elif safe_issubclass(annotation, Enum):
+        if not issubclass(annotation, str):
+            raise FalconSwoopConfigError(
+                f"{param_error_hint} must be a string enum to be usable, either subclass from str and Enum or use StrEnum"
+            )
+    elif annotation not in param.allow_types:
+        raise FalconSwoopConfigError(
+            f"{param_error_hint} has unsupported type annotation {annotation}, "
+            f"possible types are {param.allow_types}"
+        )
+    return annotation, optional
+
+
 def find_params(
-    signature: inspect.Signature, param_names: set[str], kind: ParamKind, operation_id: str
-) -> tuple[type[BaseModel] | None, set[str]]:
+    signature: inspect.Signature,
+    param_names: set[str],
+    kind: OpParamKind,
+    operation_id: str,
+    case_sensitive: bool = True,
+) -> tuple[OpFuncParamInput | None, set[str]]:
     param_inputs = []
 
     for param_name in param_names:
-        param = signature.parameters[param_name]
-        if param.default is None or param.default == signature.empty:
+        input_argument = signature.parameters[param_name]
+        if input_argument.default is None or input_argument.default == signature.empty:
             continue
-        if not isinstance(param.default, Param):
+        if not isinstance(input_argument.default, OpParam):
             continue
-        default: Param = param.default
-        if default.kind != kind:
+        param: OpParam = input_argument.default
+        if param.kind != kind:
             continue
-        if param.annotation is None:
-            raise FalconSwoopConfigError(
-                f"{default.kind.capitalize()} parameter {param.name} requires type annotation, "
-                f"possible types are {default.allowed_types}"
-            )
-        if param.annotation not in default.allowed_types:
-            raise FalconSwoopConfigError(
-                f"{default.kind.capitalize()} parameter {param.name} has unsupported type "
-                f"annotation {param.annotation}, possible types are {default.allowed_types}"
+        param_kind_str = param.kind.capitalize()
+        error_start = f"{param_kind_str} parameter {input_argument.name}"
+        annotation, optional = find_param_type(
+            param=param,
+            annotation=input_argument.annotation,
+            empty_val=signature.empty,
+            param_error_hint=error_start,
+        )
+        if optional and param.has_default_value and not param.has_none_as_default_value:
+            warnings.warn(
+                f"{error_start} is type hinted as optional, but will never be None because of default value",
+                FalconSwoopConfigWarning,
             )
         param_input = OpApiParamInput(
             name=param_name,
-            annotation=param.annotation,
-            info=default.field_info,
+            annotation=annotation,
+            annotation_orig=input_argument.annotation,
+            info=param.field_info,
+            optional=optional,
         )
+        if not case_sensitive:
+            input_name = param_input.input_name
+            if not (input_name.islower() or input_name.isupper()):
+                alias_hint = " (see alias)" if param_input.uses_alias else ""
+                warnings.warn(
+                    f"{error_start} has mixed case{alias_hint}, but {param_kind_str} parameters are "
+                    "case insensitive, it's recommend to use either lowercase or uppercase only",
+                    FalconSwoopConfigWarning,
+                )
         param_inputs.append(param_input)
 
     if len(param_inputs) == 0:
         return None, set()
 
-    # TODO: add warning for header parameters that seem to imply case sensitivity
     used_param_names = {pi.name for pi in param_inputs}
     param_model_name = f"{operation_id}{kind.lower().capitalize()}Params"
     param_type = create_model(
-        param_model_name, **{pi.name: (pi.annotation, pi.info) for pi in param_inputs}
+        param_model_name, **{pi.name: (pi.annotation_orig, pi.info) for pi in param_inputs}
     )  # type: ignore[call-overload]
-    return param_type, used_param_names
+    func_input = OpFuncParamInput(param_type, {pi.name: pi for pi in param_inputs}, case_sensitive)
+    return func_input, used_param_names
 
 
 class OperationKwArgs(TypedDict):
@@ -172,28 +250,41 @@ def inspect_operation(
     signature = inspect.signature(func)
     op_input = None
     op_output_type = None
-    operation_id = get_operation_id_or_default(kwargs.get("operation_id"), func)
+    op_id = get_operation_id_or_default(kwargs.get("operation_id"), func)
 
     input_params = signature.parameters.keys() - {"self"}
 
-    header_input, header_params = find_params(signature, input_params, ParamKind.HEADER, operation_id)
-    query_input, query_params = find_params(signature, input_params, ParamKind.QUERY, operation_id)
-    path_input, path_params = find_params(signature, input_params, ParamKind.PATH, operation_id)
+    header_input, header_params = find_params(signature, input_params, OpParamKind.HEADER, op_id, case_sensitive=False)
+    query_input, query_params = find_params(signature, input_params, OpParamKind.QUERY, op_id)
+    path_input, path_params = find_params(signature, input_params, OpParamKind.PATH, op_id)
 
     input_params.difference_update(header_params | query_params | path_params)
 
     if len(input_params) == 1:
         param = signature.parameters[input_params.pop()]
+        param_annotation = param.annotation
         param_type = param.annotation
+        optional = False
+
+        if is_union_type(param_annotation):
+            unpacked = unpack_optional_type(param_annotation)
+            if unpacked.is_optional_for_single_type:
+                param_type = unpacked.types_without_none[0]
+                optional = True
+            else:
+                raise FalconSwoopConfigError(f"Operation input parameter {param.name} cannot be a union")
+
         if not issubclass(param_type, BaseModel):
             raise FalconSwoopConfigError(
-                f"Parameter type of {param.name} needs to be a subclass of {BaseModel.__name__}"
+                f"Operation input parameter {param.name} needs to be a subclass of {BaseModel.__name__}"
             )
-        op_input = OpApiModelInput(param.name, param_type)
+        op_input = OpApiModelInput(param.name, param_type, optional)
     elif len(input_params) > 1:
         raise FalconSwoopConfigError("More than 1 parameter found")
 
     if signature.return_annotation not in (signature.empty, None):
+        if is_union_type(signature.return_annotation):
+            raise FalconSwoopConfigError("Return type cannot be a union or optional")
         if not issubclass(signature.return_annotation, BaseModel):
             raise FalconSwoopConfigError(f"Return type needs to be a subclass of {BaseModel.__name__}")
         op_output_type = signature.return_annotation
@@ -238,7 +329,7 @@ def inspect_operation(
 
     return OpInfoWithSpec(
         method=method,
-        operation_id=operation_id,
+        operation_id=op_id,
         tags=kwargs.get("tags", []),
         deprecated=kwargs.get("deprecated", False),
         request_doc=request_doc,

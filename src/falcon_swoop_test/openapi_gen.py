@@ -68,6 +68,10 @@ class Item(ApiBaseResource):
     def record_item(self, req: RecordItemRequest) -> None:
         pass
 
+    @operation(method="PATCH")
+    def update_item(self, req: RecordItemRequest | None) -> None:
+        pass
+
 
 class Items(ApiBaseResource):
     PATH = "/items"
@@ -163,6 +167,20 @@ def test_usage_of_model_references(gen_result: OpenApiGeneratorResult) -> None:
     get_item_200_resp_content = get_items_200_resp.content[OpenApiMimeType.JSON].schema_
     assert isinstance(get_item_200_resp_content, OpenApiReference)
     assert get_item_200_resp_content.ref.startswith(exp_ref)
+
+
+def test_optional_input_marked_accordingly(gen_result: OpenApiGeneratorResult) -> None:
+    spec = gen_result.spec
+
+    post = spec.paths[Item.PATH].post
+    assert post is not None
+    assert isinstance(post.request_body, OpenApiRequestBody)
+    assert post.request_body.required
+
+    patch = spec.paths[Item.PATH].patch
+    assert patch is not None
+    assert isinstance(patch.request_body, OpenApiRequestBody)
+    assert not patch.request_body.required
 
 
 def test_spec_from_manual_doc(gen_result: OpenApiGeneratorResult) -> None:
