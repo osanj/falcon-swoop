@@ -17,9 +17,15 @@ class SimulatedResource:
         self.app = app
         self.client = falcon.testing.TestClient(self.app)
 
+    @property
+    def plain_route(self) -> str:
+        return self.resource.api_route.plain
+
+    def format_route(self, **kwargs: Any) -> str:
+        return self.resource.api_route.format(**kwargs)
+
     def __get_path(self, kwargs: dict[str, Any]) -> str:
-        default_path = self.resource.api_route.plain
-        return str(kwargs.pop("path", default_path))
+        return str(kwargs.pop("path", self.plain_route))
 
     def __convert_model_to_json(self, kwargs: dict[str, Any]) -> dict[str, Any]:
         key_json = "json"

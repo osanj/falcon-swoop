@@ -93,10 +93,10 @@ class BasicResource3(ApiBaseResource):
     @operation(method="GET")
     def get_weather(
         self,
-        # mode: WeatherLevel = query_param(),
+        mode: WeatherLevel = query_param(),
         # unit: Literal["C", "F"] = query_param()
     ) -> BasicOutput:
-        return BasicOutput(data={"temperature": 20})
+        return BasicOutput(data={"temperature": 20, "mode": mode.name})
 
 
 @pytest.fixture(scope="module")
@@ -169,7 +169,7 @@ def test_bad_path_param_raises_400(resource2: SimulatedResource) -> None:
 
 
 def test_header_parameters_are_case_insensitive(resource2: SimulatedResource) -> None:
-    path = resource2.resource.api_route.format(country="FR", cityId=1)
+    path = resource2.format_route(country="FR", cityId=1)
     expected_header_value = "not-dummy"
 
     resp0 = resource2.simulate_get(path=path)
@@ -183,20 +183,20 @@ def test_header_parameters_are_case_insensitive(resource2: SimulatedResource) ->
 
 
 def test_operation_decorated_with_docs_only(resource2: SimulatedResource) -> None:
-    resp = resource2.simulate_patch(path=resource2.resource.api_route.format(country="ES", cityId=1))
+    resp = resource2.simulate_patch(path=resource2.format_route(country="ES", cityId=1))
     assert resp.status_code == 200
     assert resp.text == "patched"
 
 
 def test_operation_not_decorated(resource2: SimulatedResource) -> None:
-    resp = resource2.simulate_delete(path=resource2.resource.api_route.format(country="ES", cityId=1))
+    resp = resource2.simulate_delete(path=resource2.format_route(country="ES", cityId=1))
     assert resp.status_code == 200
     assert resp.text == "deleted"
 
 
 def test_optional_query_param_and_header_param(resource2: SimulatedResource) -> None:
     resp = resource2.simulate_put(
-        path=resource2.resource.api_route.format(country="ES", cityId=1),
+        path=resource2.format_route(country="ES", cityId=1),
         json_model=BasicInput(param1="test"),
     )
     assert resp.status_code == 200
@@ -205,7 +205,7 @@ def test_optional_query_param_and_header_param(resource2: SimulatedResource) -> 
 
 
 def test_optional_input_model(resource2: SimulatedResource) -> None:
-    path = resource2.resource.api_route.format(country="ES", cityId=1)
+    path = resource2.format_route(country="ES", cityId=1)
     resp = resource2.simulate_put(path=path, json_model=BasicInput(param1="test"))
     assert resp.status_code == 200
     assert resp.json["data"]["param1"] == "test"
@@ -213,6 +213,13 @@ def test_optional_input_model(resource2: SimulatedResource) -> None:
     resp_missing = resource2.simulate_put(path=path)
     assert resp_missing.status_code == 200
     assert resp_missing.json["data"]["param1"] is None
+
+
+def test_string_enum(resource3: SimulatedResource) -> None:
+    mode_input = WeatherLevel.REGIONAL.name
+    resp = resource3.simulate_get(params={"mode": mode_input})
+    assert resp.status_code == 200
+    assert resp.json["data"]["mode"] == mode_input
 
 
 @pytest.mark.parametrize(
