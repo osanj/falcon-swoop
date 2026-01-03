@@ -10,8 +10,7 @@ from pydantic.fields import FieldInfo
 
 from falcon_swoop.error import FalconSwoopConfigError, FalconSwoopConfigWarning
 from falcon_swoop.param import OpParam, OpParamKind, OpParamType
-from falcon_swoop.type_util import is_union_type, unpack_optional_type
-
+from falcon_swoop.type_util import is_union_type, safe_issubclass, unpack_optional_type, unpack_literal_type
 
 HttpMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]  # , "OPTIONS"]
 MimeType = Literal["application/json"]
@@ -134,17 +133,24 @@ def find_param_type(
             f"{param_error_hint} requires type annotation, possible types are {param.allow_types}"
         )
     if is_union_type(annotation):
-        unpacked = unpack_optional_type(annotation)
-        if unpacked.is_optional_for_single_type:
+        unpacked_opt = unpack_optional_type(annotation)
+        if unpacked_opt.is_optional_for_single_type:
             if param.allow_optional:
-                annotation = unpacked.types_without_none[0]
+                annotation = unpacked_opt.types_without_none[0]
                 optional = True
             else:
                 raise FalconSwoopConfigError(f"{param_error_hint} cannot be optional")
         else:
             raise FalconSwoopConfigError(f"{param_error_hint} cannot be a union")
 
-    if param.allow_str_enum and issubclass(annotation, Enum):
+    unpacked_lit = unpack_literal_type(annotation)
+    if unpacked_lit.is_literal:
+        allowed_literal_types = (str, int, bool)
+        if not unpacked_lit.has_only_values_of_type(allowed_literal_types):
+            raise FalconSwoopConfigError(
+                f"{param_error_hint} must only have literal values of type {allowed_literal_types}"
+            )
+    elif safe_issubclass(annotation, Enum):
         if not issubclass(annotation, str):
             raise FalconSwoopConfigError(
                 f"{param_error_hint} must be a string enum to be usable, either subclass from str and Enum or use StrEnum"

@@ -161,6 +161,25 @@ def test_config_error_for_normal_enum() -> None:
                 return DummyModel()
 
 
+def test_config_error_for_bad_literal() -> None:
+    with pytest.raises(
+        FalconSwoopConfigError,
+        match="Query parameter meta must only have literal values of type",
+    ):
+        from typing import Literal
+
+        class Resource(ApiBaseResource):
+            def __init__(self) -> None:
+                super().__init__("/resource")
+
+            @operation(method="GET")
+            def get(
+                self,
+                meta: Literal[b"bad", "fine"] = query_param(),
+            ) -> DummyModel:
+                return DummyModel()
+
+
 def test_config_warning_for_optional_parameter_with_default() -> None:
     with pytest.warns(
         FalconSwoopConfigWarning, match="Query parameter max_size is type hinted as optional, but will never be None"
@@ -179,7 +198,7 @@ def test_config_warning_for_optional_parameter_with_default() -> None:
 def test_config_warning_for_header_case_insensitivity() -> None:
     with pytest.warns(
         FalconSwoopConfigWarning,
-        match="Header parameter accept has mixed case \(see alias\), but Header parameters are case insensitive",
+        match="Header parameter accept has mixed case \\(see alias\\), but Header parameters are case insensitive",
     ):
 
         class Resource(ApiBaseResource):

@@ -93,10 +93,10 @@ class BasicResource3(ApiBaseResource):
     @operation(method="GET")
     def get_weather(
         self,
-        mode: WeatherLevel = query_param(),
-        # unit: Literal["C", "F"] = query_param()
+        mode: WeatherLevel = query_param(default=WeatherLevel.LOCAL),
+        unit: Literal["C", "F"] = query_param(default="C"),
     ) -> BasicOutput:
-        return BasicOutput(data={"temperature": 20, "mode": mode.name})
+        return BasicOutput(data={"temperature": 20, "mode": mode.name, "unit": unit})
 
 
 @pytest.fixture(scope="module")
@@ -217,9 +217,30 @@ def test_optional_input_model(resource2: SimulatedResource) -> None:
 
 def test_string_enum(resource3: SimulatedResource) -> None:
     mode_input = WeatherLevel.REGIONAL.name
+    resp_default = resource3.simulate_get()
+    assert resp_default.status_code == 200
+    assert resp_default.json["data"]["mode"] != mode_input  # ensure input is not default
+
     resp = resource3.simulate_get(params={"mode": mode_input})
     assert resp.status_code == 200
     assert resp.json["data"]["mode"] == mode_input
+
+    resp_bad = resource3.simulate_get(params={"mode": "SPACE"})
+    assert resp_bad.status_code == 400
+
+
+def test_string_literal(resource3: SimulatedResource) -> None:
+    unit_input = "F"
+    resp_default = resource3.simulate_get()
+    assert resp_default.status_code == 200
+    assert resp_default.json["data"]["unit"] != unit_input  # ensure input is not default
+
+    resp = resource3.simulate_get(params={"unit": unit_input})
+    assert resp.status_code == 200
+    assert resp.json["data"]["unit"] == unit_input
+
+    resp_bad = resource3.simulate_get(params={"unit": "X"})
+    assert resp_bad.status_code == 400
 
 
 @pytest.mark.parametrize(

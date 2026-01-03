@@ -40,13 +40,11 @@ class OpParam:
         field_kwargs: FieldKwArgs,
         kind: OpParamKind,
         allow_types: Sequence[OpParamType] = (bool, int, float, str),
-        allow_str_enum: bool = True,
         allow_optional: bool = True,
     ):
         self.field_info: FieldInfo = Field(**field_kwargs)
         self.kind = kind
         self.allow_types = allow_types
-        self.allow_str_enum = allow_str_enum
         self.allow_optional = allow_optional
 
     @property
