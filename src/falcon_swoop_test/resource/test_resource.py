@@ -1,18 +1,14 @@
 import re
-from pathlib import Path
 
 from falcon_swoop import operation, operation_doc
+from falcon_swoop_test.resource.util import IMPL_ASYNC, IMPL_SYNC
 
 
 def test_ensure_sync_and_async_equivalence() -> None:
-    file_dir = Path(__file__).parent
-    file_async = file_dir / "impl_async.py"
-    file_sync = file_dir / "impl_sync.py"
-
-    with file_async.open("r") as f:
+    with IMPL_ASYNC.open("r") as f:
         lines_async = f.readlines()
 
-    with file_sync.open("r") as f:
+    with IMPL_SYNC.open("r") as f:
         lines_sync = f.readlines()
 
     assert len(lines_async) == len(lines_sync)

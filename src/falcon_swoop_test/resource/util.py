@@ -1,6 +1,9 @@
+import importlib
+from pathlib import Path
 from typing import Any
 
 import falcon
+import falcon.asgi
 from falcon.testing import TestClient, Result
 from pydantic import BaseModel
 
@@ -10,9 +13,9 @@ from falcon_swoop.operation import HttpMethod
 
 class SimulatedResource:
 
-    def __init__(self, resource: ApiBaseResource) -> None:
+    def __init__(self, resource: ApiBaseResource, sync: bool = True) -> None:
         self.resource = resource
-        app = falcon.App()
+        app = falcon.App() if sync else falcon.asgi.App()
         app.add_route(resource.api_route.plain, resource)
         self.app = app
         self.client = falcon.testing.TestClient(self.app)
@@ -80,3 +83,26 @@ class SimulatedResource:
             settings=settings,
         )
         return generator.generate()
+
+
+IMPL_ASYNC = Path(__file__).parent / "impl_async.py"
+IMPL_SYNC = Path(__file__).parent / "impl_sync.py"
+
+
+class SimulatedResourceLoader:
+
+    def __init__(self, sync: bool = True) -> None:
+        self.sync = sync
+
+    def get(self, resource_name: str) -> SimulatedResource:
+        impl = IMPL_SYNC if self.sync else IMPL_ASYNC
+        module_path = f".{impl.stem}"
+
+        try:
+            module = importlib.import_module(module_path, package=__package__)
+            resource_class = getattr(module, resource_name)
+        except (ImportError, AttributeError) as e:
+            raise ImportError(f"Could not load {resource_name} from {module_path}: {e}")
+
+        resource_obj = resource_class()
+        return SimulatedResource(resource_obj, sync=self.sync)
