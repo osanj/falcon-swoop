@@ -30,7 +30,7 @@ packages = ["src/falcon_swoop"]
 [tool.pytest]
 minversion = "9.0"
 testpaths = ["src/falcon_swoop_test"]
-python_files = ["*.py"]
+python_files = ["test_*.py"]
 python_functions = ["test_*"]
 
 [tool.mypy]
