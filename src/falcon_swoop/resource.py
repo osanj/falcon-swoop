@@ -4,10 +4,11 @@ from dataclasses import dataclass
 from typing import Any, Generator, Mapping
 
 import falcon
+import falcon.asgi
 from pydantic import BaseModel, ValidationError
 
-from falcon_swoop.error import FalconSwoopConfigError, FalconSwoopWarning
-from falcon_swoop.operation import ATTR_OPERATION, HttpMethod, OpInfo, OpInfoWithSpec, OpFuncParamInput
+from falcon_swoop.error import FalconSwoopError, FalconSwoopConfigError, FalconSwoopWarning
+from falcon_swoop.operation import ATTR_OPERATION, HttpMethod, OpInfo, OpInfoWithSpec, OpFuncParamInput, operation
 from falcon_swoop.route import ApiRoute
 
 
@@ -17,16 +18,43 @@ class RequestContext:
     resp: falcon.Response
 
 
+@dataclass
+class AsgiRequestContext:
+    req: falcon.asgi.Request
+    resp: falcon.asgi.Response
+
+
 class ApiBaseResource:
 
     def __init__(self, route: str):
         self.api_route = ApiRoute(route)
-        self.__context: RequestContext | None = None
+        self.__context: AsgiRequestContext | RequestContext | None = None
         self.__operation_by_method = self.__setup()
 
     def api_ops(self) -> Generator[OpInfo, None, None]:
         for op in self.__operation_by_method.values():
             yield op
+
+    def __get_ctx(self) -> AsgiRequestContext | RequestContext:
+        if self.__context is None:
+            raise FalconSwoopError(
+                f"No context available, a (async) context is only available within methods decorated with @{operation.__name__}"
+            )
+        return self.__context
+
+    @property
+    def ctx(self) -> RequestContext:
+        ctx = self.__get_ctx()
+        if isinstance(ctx, AsgiRequestContext):
+            raise FalconSwoopError(f"The available context is asynchronous, please use '.ctx' instead")
+        return ctx
+
+    @property
+    def asgi_ctx(self) -> AsgiRequestContext:
+        ctx = self.__get_ctx()
+        if isinstance(ctx, RequestContext):
+            raise FalconSwoopError(f"The available context is synchronous, please use '.asgi_ctx' instead")
+        return ctx
 
     def __check_operation_config(
         self, operations_by_method: dict[HttpMethod, list[OpInfo]]
@@ -65,7 +93,7 @@ class ApiBaseResource:
                     f"additional parameters: {too_much}"
                 )
 
-    def __patch_op(self, method: HttpMethod) -> None:
+    def __patch_op(self, method: HttpMethod, sync: bool = True) -> None:
         method_name = f"on_{method}".lower()
         if getattr(self, method_name, None) is not None:
             raise FalconSwoopConfigError(f"Decorated {method} operation is invalid because method {method_name} exists")
@@ -73,7 +101,13 @@ class ApiBaseResource:
         def forward(req: falcon.Request, resp: falcon.Response, **path_params: Any) -> None:
             self.__on_request(method, req, resp, **path_params)
 
-        setattr(self, method_name, forward)
+        async def forward_async(req: falcon.asgi.Request, resp: falcon.asgi.Response, **path_params: Any) -> None:
+            await self.__on_request_async(method, req, resp, **path_params)
+
+        if sync:
+            setattr(self, method_name, forward)
+        else:
+            setattr(self, method_name, forward_async)
 
     def __setup(self) -> dict[HttpMethod, OpInfo]:
         operations_by_method: dict[HttpMethod, list[OpInfo]] = collections.defaultdict(list)
@@ -93,14 +127,8 @@ class ApiBaseResource:
         self.__check_path_parameter_match(operation_by_method)
         for method, op in operation_by_method.items():
             if isinstance(op, OpInfoWithSpec):
-                self.__patch_op(method)
+                self.__patch_op(method, sync=not op.is_coroutine)
         return operation_by_method
-
-    @property
-    def ctx(self) -> RequestContext:
-        if self.__context is None:
-            raise RuntimeError("No active request, so no context is available")
-        return self.__context
 
     def __collect_typed_kwargs(
         self,
@@ -133,6 +161,28 @@ class ApiBaseResource:
             raise falcon.HTTPBadRequest(description=str(e))
         return model.model_dump(by_alias=False)
 
+    def __prepare_operation(
+        self, method: HttpMethod, req: falcon.Request | falcon.asgi.Request, path_params: dict[str, Any]
+    ) -> tuple[OpInfoWithSpec, dict[str, Any]]:
+        op: OpInfo | None = self.__operation_by_method.get(method)
+        if op is None:
+            raise ValueError(f"Expected object of subtype {OpInfoWithSpec.__name__}")
+        if not isinstance(op, OpInfoWithSpec):
+            raise ValueError(f"Expected object of subtype {OpInfoWithSpec.__name__}")
+
+        kwargs = {}
+        kwargs.update(self.__collect_typed_kwargs(req.params, op.func_spec.query_input))
+        kwargs.update(self.__collect_typed_kwargs(path_params, op.func_spec.path_input))
+        kwargs.update(self.__collect_typed_kwargs(req.headers, op.func_spec.header_input))
+        return op, kwargs
+
+    def __finish_operation(self, resp: falcon.Response | falcon.asgi.Response, data_output: Any | None) -> None:
+        if data_output is not None:
+            if not isinstance(data_output, BaseModel):
+                raise ValueError(f"Expected object of subtype {BaseModel.__name__}, got {type(data_output)} instead")
+            resp.media = data_output.model_dump()
+        resp.status = falcon.HTTP_OK
+
     def __on_request(
         self,
         method: HttpMethod,
@@ -140,20 +190,8 @@ class ApiBaseResource:
         resp: falcon.Response,
         **path_params: Any,
     ) -> None:
-        op: OpInfo | None = self.__operation_by_method.get(method)
-        if op is None:
-            raise ValueError(f"Expected object of subtype {OpInfoWithSpec.__name__}")
-        if not isinstance(op, OpInfoWithSpec):
-            raise ValueError(f"Expected object of subtype {OpInfoWithSpec.__name__}")
-
-        self.__context = RequestContext(req, resp)
-
+        op, kwargs = self.__prepare_operation(method=method, req=req, path_params=path_params)
         spec = op.func_spec
-        kwargs = {}
-        kwargs.update(self.__collect_typed_kwargs(req.params, spec.query_input))
-        kwargs.update(self.__collect_typed_kwargs(path_params, spec.path_input))
-        kwargs.update(self.__collect_typed_kwargs(req.headers, spec.header_input))
-
         if spec.func_input is not None:
             if spec.func_input.optional:
                 media = req.get_media(default_when_empty=None)
@@ -166,11 +204,36 @@ class ApiBaseResource:
                 data = spec.func_input.model_type(**req.get_media())
             kwargs[spec.func_input.name] = data
 
+        self.__context = RequestContext(req, resp)
         data_output = op.func(self, **kwargs)
-        if data_output is not None:
-            if not isinstance(data_output, BaseModel):
-                raise ValueError(f"Expected object of subtype {BaseModel.__name__}")
-            resp.media = data_output.model_dump()
-        resp.status = falcon.HTTP_OK
-
         self.__context = None
+
+        self.__finish_operation(resp, data_output)
+
+    async def __on_request_async(
+        self,
+        method: HttpMethod,
+        req: falcon.asgi.Request,
+        resp: falcon.asgi.Response,
+        **path_params: Any,
+    ) -> None:
+        op, kwargs = self.__prepare_operation(method=method, req=req, path_params=path_params)
+        spec = op.func_spec
+        if spec.func_input is not None:
+            if spec.func_input.optional:
+                media = await req.get_media(default_when_empty=None)
+                if media is None:
+                    data = None
+                else:
+                    data = spec.func_input.model_type(**media)
+            else:
+                # calling req.get_media() again to maintain default falcon behavior for empty body when JSON is expected
+                media = await req.get_media()
+                data = spec.func_input.model_type(**media)
+            kwargs[spec.func_input.name] = data
+
+        self.__context = AsgiRequestContext(req, resp)
+        data_output = await op.func(self, **kwargs)
+        self.__context = None
+
+        self.__finish_operation(resp, data_output)

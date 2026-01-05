@@ -115,6 +115,10 @@ class OpInfo:
     def func_name(self) -> str:
         return self.func.__name__
 
+    @property
+    def is_coroutine(self) -> bool:
+        return inspect.iscoroutinefunction(self.func)
+
 
 @dataclass
 class OpInfoWithSpec(OpInfo):

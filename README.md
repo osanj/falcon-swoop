@@ -18,7 +18,7 @@ to an existing app or just add a single typed resource to your project.
 - [ ] add support for (de)serialization to yaml and other formats
 - [ ] add support for "more_response_docs" and way to annotate response with status + mime?
 - [ ] use `falcon._typing.ResponderCallable` and async types or redefine proper callable types
-- [ ] make everything work for async app
+- [x] make everything work for async app
 - [ ] grid CI pipeline testing combinations of python, falcon and pydantic
 - [ ] add unit test to make sure doc strings of operation and operation_doc are mostly identical
 - [ ] make sure snake_case to camelCase works easily (especially for query and path params)
