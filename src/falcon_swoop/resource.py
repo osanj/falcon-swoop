@@ -7,27 +7,54 @@ import falcon
 import falcon.asgi
 from pydantic import BaseModel, ValidationError
 
-from falcon_swoop.error import FalconSwoopConfigError, FalconSwoopWarning
-from falcon_swoop.operation import ATTR_OPERATION, HttpMethod, OpInfo, OpInfoWithSpec, OpFuncParamInput
+from falcon_swoop.error import FalconSwoopError, FalconSwoopConfigError, FalconSwoopWarning
+from falcon_swoop.operation import ATTR_OPERATION, HttpMethod, OpInfo, OpInfoWithSpec, OpFuncParamInput, operation
 from falcon_swoop.route import ApiRoute
 
 
-# @dataclass
-# class RequestContext:
-#     req: falcon.Request
-#     resp: falcon.Response
+@dataclass
+class RequestContext:
+    req: falcon.Request
+    resp: falcon.Response
+
+
+@dataclass
+class AsgiRequestContext:
+    req: falcon.asgi.Request
+    resp: falcon.asgi.Response
 
 
 class ApiBaseResource:
 
     def __init__(self, route: str):
         self.api_route = ApiRoute(route)
-        # self.__context: RequestContext | None = None
+        self.__context: AsgiRequestContext | RequestContext | None = None
         self.__operation_by_method = self.__setup()
 
     def api_ops(self) -> Generator[OpInfo, None, None]:
         for op in self.__operation_by_method.values():
             yield op
+
+    def __get_ctx(self) -> AsgiRequestContext | RequestContext:
+        if self.__context is None:
+            raise FalconSwoopError(
+                f"No context available, a (async) context is only available within methods decorated with @{operation.__name__}"
+            )
+        return self.__context
+
+    @property
+    def ctx(self) -> RequestContext:
+        ctx = self.__get_ctx()
+        if isinstance(ctx, AsgiRequestContext):
+            raise FalconSwoopError(f"The available context is asynchronous, please use '.ctx' instead")
+        return ctx
+
+    @property
+    def asgi_ctx(self) -> AsgiRequestContext:
+        ctx = self.__get_ctx()
+        if isinstance(ctx, RequestContext):
+            raise FalconSwoopError(f"The available context is synchronous, please use '.asgi_ctx' instead")
+        return ctx
 
     def __check_operation_config(
         self, operations_by_method: dict[HttpMethod, list[OpInfo]]
@@ -103,12 +130,6 @@ class ApiBaseResource:
                 self.__patch_op(method, sync=not op.is_coroutine)
         return operation_by_method
 
-    # @property
-    # def ctx(self) -> RequestContext:
-    #     if self.__context is None:
-    #         raise RuntimeError("No active request, so no context is available")
-    #     return self.__context
-
     def __collect_typed_kwargs(
         self,
         input_kwargs_: Mapping[str, Any],
@@ -183,7 +204,10 @@ class ApiBaseResource:
                 data = spec.func_input.model_type(**req.get_media())
             kwargs[spec.func_input.name] = data
 
+        self.__context = RequestContext(req, resp)
         data_output = op.func(self, **kwargs)
+        self.__context = None
+
         self.__finish_operation(resp, data_output)
 
     async def __on_request_async(
@@ -208,5 +232,8 @@ class ApiBaseResource:
                 data = spec.func_input.model_type(**media)
             kwargs[spec.func_input.name] = data
 
+        self.__context = AsgiRequestContext(req, resp)
         data_output = await op.func(self, **kwargs)
+        self.__context = None
+
         self.__finish_operation(resp, data_output)

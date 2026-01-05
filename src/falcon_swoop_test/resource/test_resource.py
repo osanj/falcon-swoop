@@ -4,6 +4,13 @@ from falcon_swoop import operation, operation_doc
 from falcon_swoop_test.resource.util import IMPL_ASYNC, IMPL_SYNC
 
 
+def ensure_line_matches(line_sync: str, line_async: str, convert_def: bool = False) -> None:
+    line_sync = line_sync.replace("self.ctx", "self.asgi_ctx")
+    if convert_def:
+        line_sync = line_sync.replace("def", "async def")
+    assert line_sync == line_async
+
+
 def test_ensure_sync_and_async_equivalence() -> None:
     with IMPL_ASYNC.open("r") as f:
         lines_async = f.readlines()
@@ -15,11 +22,6 @@ def test_ensure_sync_and_async_equivalence() -> None:
 
     pattern_operation_dec = f"\\s+@({operation.__name__}|{operation_doc.__name__})"
     pattern_falcon_method = f"def\\s+on_(post|get|put|delete|patch|head|options)"
-
-    def ensure_line_matches(line_sync_: str, line_async_: str, convert_def: bool = False) -> None:
-        if convert_def:
-            line_sync_ = line_sync.replace("def", "async def")
-        assert line_sync_ == line_async_
 
     operation_expected = False
     for i in range(len(lines_sync)):

@@ -21,7 +21,8 @@ class BasicResource1(ApiBaseResource):
 
     @operation(method="POST")
     def post_something(self, basic_input: BasicInput) -> BasicOutput:
-        return BasicOutput(data={"param1": basic_input.param1})
+        content_type = self.ctx.req.content_type
+        return BasicOutput(data={"param1": basic_input.param1, "content_type": content_type})
 
 
 class BasicResource2(ApiBaseResource):
