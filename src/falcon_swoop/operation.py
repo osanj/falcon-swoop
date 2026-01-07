@@ -101,6 +101,8 @@ class OpFuncSpec:
 class OpInfo:
     method: HttpMethod
     operation_id: str
+    summary: str | None
+    description: str | None
     tags: list[str]
     deprecated: bool
     request_doc: OpRequestDoc | None
@@ -230,6 +232,8 @@ def find_params(
 
 class OperationKwArgs(TypedDict):
     operation_id: NotRequired[str]
+    summary: NotRequired[str]
+    description: NotRequired[str]
     tags: NotRequired[list[str]]
     accept: NotRequired[list[MimeType]]
     deprecated: NotRequired[bool]
@@ -334,6 +338,8 @@ def inspect_operation(
     return OpInfoWithSpec(
         method=method,
         operation_id=op_id,
+        summary=kwargs.get("summary"),
+        description=kwargs.get("description"),
         tags=kwargs.get("tags", []),
         deprecated=kwargs.get("deprecated", False),
         request_doc=request_doc,
@@ -367,6 +373,8 @@ def operation(method: HttpMethod, **kwargs: Unpack[OperationKwArgs]) -> Callable
 
 class OperationDocKwArgs(TypedDict):
     operation_id: NotRequired[str]
+    summary: NotRequired[str]
+    description: NotRequired[str]
     tags: NotRequired[list[str]]
     accept: NotRequired[list[MimeType]]
     deprecated: NotRequired[bool]
@@ -397,6 +405,8 @@ def inspect_operation_doc(
     return OpInfo(
         method=method,
         operation_id=operation_id,
+        summary=kwargs.get("summary"),
+        description=kwargs.get("description"),
         tags=kwargs.get("tags", []),
         deprecated=kwargs.get("deprecated", False),
         request_doc=kwargs.get("request_doc"),

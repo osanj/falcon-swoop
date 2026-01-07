@@ -131,7 +131,8 @@ class OpenApiGenerator:
 
         return OpenApiOperation(
             operationId=op_info.operation_id,
-            summary=op_info.func.__doc__,
+            summary=op_info.summary,
+            description=op_info.description,
             tags=op_info.tags,
             deprecated=op_info.deprecated,
             requestBody=req_body,
@@ -142,8 +143,8 @@ class OpenApiGenerator:
         operations: dict[HttpMethod, OpenApiOperation] = {}
         for op_info in resource.api_ops():
             operations[op_info.method] = self.map_operation_info(op_info)
+
         return OpenApiPathItem(
-            summary=resource.__doc__,
             **{method.lower(): op for method, op in operations.items()},
         )
 
