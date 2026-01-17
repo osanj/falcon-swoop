@@ -7,7 +7,7 @@ to an existing app or just add a single typed resource to your project.
 
 ### Open Items
 
-- [ ] add params to openapi docgen
+- [x] add params to openapi docgen
 - [ ] add security schemes to openapi docgen
 - [ ] add binaryIO and textIO input/output data
 - [x] make certain query and header parameters optional (e.g. `my_query_param: int | None = ...`)
