@@ -15,13 +15,17 @@ from falcon_swoop.openapi.spec import (
     OpenApiMimeType,
     OpenApiOperation,
     OpenApiPathItem,
+    OpenApiParameter,
+    OpenApiParameterType,
     OpenApiReference,
     OpenApiRequestBody,
     OpenApiResponse,
 )
 from falcon_swoop.operation import (
     HttpMethod,
+    OpFuncParamInput,
     OpInfo,
+    OpInfoWithSpec,
     OpResponseDoc,
     OpRequestDoc,
     OpExample,
@@ -32,12 +36,76 @@ from falcon_swoop.operation import (
 
 @dataclass
 class OpenApiGeneratorSettings:
-    pass
+    # when active identical parameters will be put in components.parameters and referenced, leads to more compact spec
+    reuse_parameters_if_possible: bool = True
 
 
 @dataclass
 class OpenApiGeneratorResult:
     spec: OpenApiDocument
+
+
+class OpenApiParameterCollector:
+    REF_TEMPLATE: Final[str] = "#/components/parameters/{param}"
+
+    def __init__(self) -> None:
+        self.__counts: dict[OpenApiParameterType, int] = {
+            OpenApiParameterType.PATH: 0,
+            OpenApiParameterType.QUERY: 0,
+            OpenApiParameterType.COOKIE: 0,
+            OpenApiParameterType.HEADER: 0,
+        }
+        self.__params: list[OpenApiParameter] = []
+        self.__names: list[str] = []
+
+    def __build_params(self, param_type: OpenApiParameterType, param_input: OpFuncParamInput) -> list[OpenApiParameter]:
+        params = []
+        schema = param_input.model_type.model_json_schema(by_alias=True)
+        for prop_name, prop_schema in schema["properties"].items():
+            pi = param_input.param_by_input_name[prop_name]
+            param = OpenApiParameter(
+                name=prop_name,
+                in_=param_type,
+                schema_=prop_schema,
+                deprecated=pi.info.deprecated or False,
+                description=pi.info.description,
+                required=not pi.optional,
+            )
+            params.append(param)
+        return params
+
+    def __collect_param(self, param: OpenApiParameter, reuse: bool) -> OpenApiReference:
+        if reuse and param in self.__params:
+            param_index = self.__params.index(param)
+            param_name = self.__names[param_index]
+
+        else:
+            param_name = f"{param.in_.value}{self.__counts[param.in_]}"
+            self.__counts[param.in_] += 1
+            self.__params.append(param)
+            self.__names.append(param_name)
+
+        return OpenApiReference(ref=self.REF_TEMPLATE.format(param=param_name))
+
+    def build_params(
+        self, param_type: OpenApiParameterType, param_input: OpFuncParamInput | None, reuse: bool, collect: bool = True
+    ) -> list[OpenApiParameter | OpenApiReference]:
+        if param_input is None:
+            return []
+
+        params_out: list[OpenApiParameter | OpenApiReference] = []
+        params = self.__build_params(param_type, param_input)
+
+        if not collect:
+            params_out = params  # type: ignore[assignment]
+        else:
+            for p in params:
+                p_ref = self.__collect_param(p, reuse=reuse)
+                params_out.append(p_ref)
+        return params_out
+
+    def get_params(self) -> dict[str, OpenApiParameter]:
+        return dict(zip(self.__names, self.__params))
 
 
 class OpenApiModelCollector:
@@ -80,6 +148,7 @@ class OpenApiGenerator:
         self.resources = resources
         self.settings = settings or OpenApiGeneratorSettings()
         self.__model_collector = OpenApiModelCollector()
+        self.__param_collector = OpenApiParameterCollector()
         self.info = OpenApiInfo(
             title=title,
             version=version,
@@ -129,12 +198,37 @@ class OpenApiGenerator:
         for status_code, rd in op_info.response_docs.items():
             responses[str(status_code)] = self.map_response_doc(rd)
 
+        parameters = []
+        if isinstance(op_info, OpInfoWithSpec):
+            parameters.extend(
+                self.__param_collector.build_params(
+                    param_type=OpenApiParameterType.QUERY,
+                    param_input=op_info.func_spec.query_input,
+                    reuse=self.settings.reuse_parameters_if_possible,
+                )
+            )
+            parameters.extend(
+                self.__param_collector.build_params(
+                    param_type=OpenApiParameterType.HEADER,
+                    param_input=op_info.func_spec.header_input,
+                    reuse=self.settings.reuse_parameters_if_possible,
+                )
+            )
+            parameters.extend(
+                self.__param_collector.build_params(
+                    param_type=OpenApiParameterType.PATH,
+                    param_input=op_info.func_spec.path_input,
+                    reuse=self.settings.reuse_parameters_if_possible,
+                )
+            )
+
         return OpenApiOperation(
             operationId=op_info.operation_id,
             summary=op_info.summary,
             description=op_info.description,
             tags=op_info.tags,
             deprecated=op_info.deprecated,
+            parameters=parameters,
             requestBody=req_body,
             responses=responses,
         )
@@ -153,10 +247,11 @@ class OpenApiGenerator:
         for r in self.resources:
             paths[r.api_route.plain] = self.map_api_resource(r)
 
-        schemas = self.__model_collector.get_schemas()
-        # TODO: params
         # TODO: security_schemas
-        components = OpenApiComponents(schemas=schemas)
+        components = OpenApiComponents(
+            schemas=self.__model_collector.get_schemas(),
+            parameters=self.__param_collector.get_params(),
+        )
 
         spec = OpenApiDocument(
             info=self.info,

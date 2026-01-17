@@ -83,6 +83,7 @@ OpResponseDocByHttpCode = dict[int, OpResponseDoc]
 class OpFuncParamInput:
     model_type: type[BaseModel]
     param_by_name: dict[str, OpApiParamInput]
+    param_by_input_name: dict[str, OpApiParamInput]
     case_sensitive: bool
 
 
@@ -226,7 +227,12 @@ def find_params(
     param_type = create_model(
         param_model_name, **{pi.name: (pi.annotation_orig, pi.info) for pi in param_inputs}
     )  # type: ignore[call-overload]
-    func_input = OpFuncParamInput(param_type, {pi.name: pi for pi in param_inputs}, case_sensitive)
+    func_input = OpFuncParamInput(
+        model_type=param_type,
+        param_by_name={pi.name: pi for pi in param_inputs},
+        param_by_input_name={pi.input_name: pi for pi in param_inputs},
+        case_sensitive=case_sensitive,
+    )
     return func_input, used_param_names
 
 
