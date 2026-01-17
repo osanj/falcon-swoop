@@ -12,7 +12,7 @@ from falcon_swoop import (
     OpRequestDoc,
     OpResponseDoc,
     OpTypeDoc,
-    OpenApiGenerator,
+    OpenApiGenerator, path_param, header_param,
 )
 from falcon_swoop.openapi.spec import (
     OpenApiReference,
@@ -34,6 +34,11 @@ class StatsView(BaseModel):
     count: int
     min_value: int
     max_value: int
+
+
+class PostView(BaseModel):
+    id: int
+    content: str
 
 
 class ItemView(BaseModel):
@@ -127,10 +132,30 @@ class Items(ApiBaseResource):
         pass
 
 
+class Post(ApiBaseResource):
+    PATH = "/posts/{postId}"
+
+    def __init__(self) -> None:
+        super().__init__(self.PATH)
+
+    @operation(method="GET")
+    def get_post(
+        self,
+        post_id: int = path_param(alias="postId"),
+    ) -> PostView:
+        return PostView(id=post_id, content="lorem ipsum")
+
+    @operation(method="DELETE")
+    def delete_post(self,
+                    post_id: int = path_param(alias="postId"),
+                    admin_key: str = header_param(alias="X-ADMIN-KEY")) -> None:
+        pass
+
+
 @pytest.fixture(scope="module")
 def gen() -> OpenApiGenerator:
     return OpenApiGenerator(
-        resources=[Item(), Items()],
+        resources=[Item(), Items(), Post()],
         title="Item API",
         version="0.0.1",
     )
@@ -249,6 +274,8 @@ def test_param_generation(spec: OpenApiDocument) -> None:
         ("item_id", OpenApiParameterType.QUERY),
         ("offset", OpenApiParameterType.QUERY),
         ("limit", OpenApiParameterType.QUERY),
+        ("postId", OpenApiParameterType.PATH),
+        ("X-ADMIN-KEY", OpenApiParameterType.HEADER),
     ]
     assert set(params_act) == set(params_exp)
 
@@ -268,6 +295,21 @@ def test_param_generation(spec: OpenApiDocument) -> None:
         params_exp=[
             ("offset", OpenApiParameterType.QUERY),
             ("limit", OpenApiParameterType.QUERY),
+        ],
+    )
+    lookup_and_check_params(
+        spec=spec,
+        params=spec.paths[Post.PATH].get.parameters,  # type: ignore
+        params_exp=[
+            ("postId", OpenApiParameterType.PATH),
+        ],
+    )
+    lookup_and_check_params(
+        spec=spec,
+        params=spec.paths[Post.PATH].delete.parameters,  # type: ignore
+        params_exp=[
+            ("postId", OpenApiParameterType.PATH),
+            ("X-ADMIN-KEY", OpenApiParameterType.HEADER),
         ],
     )
 
