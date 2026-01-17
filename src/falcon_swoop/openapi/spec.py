@@ -1,6 +1,8 @@
 import re
 from enum import Enum, unique
-from typing import Any, Literal
+from typing import Any, Literal, Callable
+
+from pydantic.main import IncEx
 from typing_extensions import Self
 
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -40,6 +42,9 @@ class OpenApiParameterType(str, Enum):
 
 class OpenApiSpecModel(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
+
+    def to_dict(self, mode: Literal["json", "python"] = "json") -> dict[Any, str]:
+        return self.model_dump(mode=mode, by_alias=True, exclude_none=True)
 
 
 class OpenApiExternalDocumentation(OpenApiSpecModel):
