@@ -28,6 +28,7 @@ class FieldKwArgs(TypedDict):
     le: NotRequired[int | float]
     min_length: NotRequired[int]
     max_length: NotRequired[int]
+    deprecated: NotRequired[bool]
     # TODO: add more?
 
 

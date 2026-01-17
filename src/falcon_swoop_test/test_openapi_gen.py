@@ -1,3 +1,5 @@
+from typing import Sequence
+
 import falcon
 import pytest
 from pydantic import BaseModel, Field
@@ -10,10 +12,17 @@ from falcon_swoop import (
     OpRequestDoc,
     OpResponseDoc,
     OpTypeDoc,
-    OpenApiGenerator,
-    OpenApiGeneratorResult,
+    OpenApiGenerator, path_param, header_param,
 )
-from falcon_swoop.openapi.spec import OpenApiReference, OpenApiResponse, OpenApiRequestBody, OpenApiMimeType
+from falcon_swoop.openapi.spec import (
+    OpenApiReference,
+    OpenApiResponse,
+    OpenApiRequestBody,
+    OpenApiMimeType,
+    OpenApiDocument,
+    OpenApiParameterType,
+    OpenApiParameter,
+)
 
 
 class RecordItemRequest(BaseModel):
@@ -25,6 +34,11 @@ class StatsView(BaseModel):
     count: int
     min_value: int
     max_value: int
+
+
+class PostView(BaseModel):
+    id: int
+    content: str
 
 
 class ItemView(BaseModel):
@@ -69,7 +83,7 @@ class Item(ApiBaseResource):
         pass
 
     @operation(method="PATCH")
-    def update_item(self, req: RecordItemRequest | None) -> None:
+    def update_item(self, req: RecordItemRequest | None, item_id: int = query_param(ge=1)) -> None:
         pass
 
 
@@ -118,22 +132,45 @@ class Items(ApiBaseResource):
         pass
 
 
+class Post(ApiBaseResource):
+    PATH = "/posts/{postId}"
+
+    def __init__(self) -> None:
+        super().__init__(self.PATH)
+
+    @operation(method="GET")
+    def get_post(
+        self,
+        post_id: int = path_param(alias="postId"),
+    ) -> PostView:
+        return PostView(id=post_id, content="lorem ipsum")
+
+    @operation(method="DELETE")
+    def delete_post(self,
+                    post_id: int = path_param(alias="postId"),
+                    admin_key: str = header_param(alias="X-ADMIN-KEY")) -> None:
+        pass
+
+
 @pytest.fixture(scope="module")
-def gen_result() -> OpenApiGeneratorResult:
-    generator = OpenApiGenerator(
-        resources=[Item(), Items()],
+def gen() -> OpenApiGenerator:
+    return OpenApiGenerator(
+        resources=[Item(), Items(), Post()],
         title="Item API",
         version="0.0.1",
     )
-    return generator.generate()
+
+
+@pytest.fixture(scope="module")
+def spec(gen: OpenApiGenerator) -> OpenApiDocument:
+    return gen.generate().spec
 
 
 SCHEMA_PROPS = "properties"
 SCHEMA_REF = "$ref"
 
 
-def test_usage_of_model_references(gen_result: OpenApiGeneratorResult) -> None:
-    spec = gen_result.spec
+def test_usage_of_model_references(spec: OpenApiDocument) -> None:
     component_schemas = spec.components.schemas
     models: list[type[BaseModel]] = [ItemView, ItemViewsPage, StatsView, RecordItemRequest]
     assert component_schemas.keys() >= {m.__name__ for m in models}
@@ -169,9 +206,7 @@ def test_usage_of_model_references(gen_result: OpenApiGeneratorResult) -> None:
     assert get_item_200_resp_content.ref.startswith(exp_ref)
 
 
-def test_optional_input_marked_accordingly(gen_result: OpenApiGeneratorResult) -> None:
-    spec = gen_result.spec
-
+def test_optional_input_marked_accordingly(spec: OpenApiDocument) -> None:
     post = spec.paths[Item.PATH].post
     assert post is not None
     assert isinstance(post.request_body, OpenApiRequestBody)
@@ -183,8 +218,7 @@ def test_optional_input_marked_accordingly(gen_result: OpenApiGeneratorResult) -
     assert not patch.request_body.required
 
 
-def test_spec_from_manual_doc(gen_result: OpenApiGeneratorResult) -> None:
-    spec = gen_result.spec
+def test_spec_from_manual_doc(spec: OpenApiDocument) -> None:
     models: list[type[BaseModel]] = [DeleteItemsRequest, DeleteItemsResponse]
     assert spec.components.schemas.keys() >= {m.__name__ for m in models}
 
@@ -213,3 +247,77 @@ def test_spec_from_manual_doc(gen_result: OpenApiGeneratorResult) -> None:
     assert isinstance(delete_resp_401, OpenApiResponse)
     assert len(delete_resp_401.content) == 0
     assert delete_resp_401.description is not None
+
+
+def lookup_and_check_params(
+    spec: OpenApiDocument,
+    params: Sequence[OpenApiParameter | OpenApiReference],
+    params_exp: Sequence[tuple[str, OpenApiParameterType]],
+) -> None:
+    params_out: list[OpenApiParameter] = []
+    for p in params:
+        if isinstance(p, OpenApiParameter):
+            params_out.append(p)
+        else:
+            _, param_ref = p.ref.rsplit("/", maxsplit=1)
+            p2 = spec.components.parameters[param_ref]
+            assert isinstance(p2, OpenApiParameter)
+            params_out.append(p2)
+
+    params_act = [(p.name, p.in_) for p in params_out]
+    assert set(params_act) == set(params_exp)
+
+
+def test_param_generation(spec: OpenApiDocument) -> None:
+    params_act = [(p.name, p.in_) for p in spec.components.parameters.values() if isinstance(p, OpenApiParameter)]
+    params_exp = [
+        ("item_id", OpenApiParameterType.QUERY),
+        ("offset", OpenApiParameterType.QUERY),
+        ("limit", OpenApiParameterType.QUERY),
+        ("postId", OpenApiParameterType.PATH),
+        ("X-ADMIN-KEY", OpenApiParameterType.HEADER),
+    ]
+    assert set(params_act) == set(params_exp)
+
+    lookup_and_check_params(
+        spec=spec,
+        params=spec.paths[Item.PATH].get.parameters,  # type: ignore
+        params_exp=[("item_id", OpenApiParameterType.QUERY)],
+    )
+    lookup_and_check_params(
+        spec=spec,
+        params=spec.paths[Item.PATH].patch.parameters,  # type: ignore
+        params_exp=[("item_id", OpenApiParameterType.QUERY)],
+    )
+    lookup_and_check_params(
+        spec=spec,
+        params=spec.paths[Items.PATH].get.parameters,  # type: ignore
+        params_exp=[
+            ("offset", OpenApiParameterType.QUERY),
+            ("limit", OpenApiParameterType.QUERY),
+        ],
+    )
+    lookup_and_check_params(
+        spec=spec,
+        params=spec.paths[Post.PATH].get.parameters,  # type: ignore
+        params_exp=[
+            ("postId", OpenApiParameterType.PATH),
+        ],
+    )
+    lookup_and_check_params(
+        spec=spec,
+        params=spec.paths[Post.PATH].delete.parameters,  # type: ignore
+        params_exp=[
+            ("postId", OpenApiParameterType.PATH),
+            ("X-ADMIN-KEY", OpenApiParameterType.HEADER),
+        ],
+    )
+
+
+def test_param_reuse(gen: OpenApiGenerator) -> None:
+    assert gen.settings.reuse_parameters_if_possible
+    spec1 = gen.generate().spec
+
+    gen.settings.reuse_parameters_if_possible = False
+    spec2 = gen.generate().spec
+    assert len(spec1.components.parameters) < len(spec2.components.parameters)
