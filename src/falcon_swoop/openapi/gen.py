@@ -173,6 +173,10 @@ class OpenApiGenerator:
             description=description,
         )
 
+    def __reset(self) -> None:
+        self.__model_collector = OpenApiModelCollector()
+        self.__param_collector = OpenApiParameterCollector()
+
     def map_schema(self, op_type: OpType) -> OpenApiReference | JsonSchema | None:
         if op_type is None:
             return None
@@ -263,6 +267,8 @@ class OpenApiGenerator:
         )
 
     def generate(self) -> OpenApiGeneratorResult:
+        self.__reset()
+
         paths: dict[str, OpenApiPathItem] = {}
         for r in self.resources:
             paths[r.api_route.plain] = self.map_api_resource(r)
