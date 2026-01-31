@@ -106,7 +106,7 @@ def test_optional_query_param_and_header_param(resource2: SimulatedResource) -> 
         path=resource2.format_route(country="ES", cityId=1),
         json_model=BasicInput(param1="test"),
     )
-    assert resp.status_code == 200
+    assert resp.status_code == 201
     assert resp.json["data"]["tag"] is None
     assert resp.json["data"]["api_key"] is None
 
@@ -114,11 +114,11 @@ def test_optional_query_param_and_header_param(resource2: SimulatedResource) -> 
 def test_optional_input_model(resource2: SimulatedResource) -> None:
     path = resource2.format_route(country="ES", cityId=1)
     resp = resource2.simulate_put(path=path, json_model=BasicInput(param1="test"))
-    assert resp.status_code == 200
+    assert resp.status_code == 201
     assert resp.json["data"]["param1"] == "test"
 
     resp_missing = resource2.simulate_put(path=path)
-    assert resp_missing.status_code == 200
+    assert resp_missing.status_code == 201
     assert resp_missing.json["data"]["param1"] is None
 
 

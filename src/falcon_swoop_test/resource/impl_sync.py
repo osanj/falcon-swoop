@@ -39,7 +39,7 @@ class BasicResource2(ApiBaseResource):
     ) -> BasicOutput:
         return BasicOutput(data={"country": country, "city": city_id, "api_key": api_key})
 
-    @operation(method="PUT")
+    @operation(method="PUT", default_status=201)
     def put_city_data(
         self,
         req: BasicInput | None,

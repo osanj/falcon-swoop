@@ -126,6 +126,7 @@ class OpInfo:
 @dataclass
 class OpInfoWithSpec(OpInfo):
     func_spec: OpFuncSpec
+    default_status_code: int
 
 
 def find_param_type(
@@ -351,6 +352,7 @@ def inspect_operation(
         request_doc=request_doc,
         response_docs=response_docs,
         func=func,
+        # ---
         func_spec=OpFuncSpec(
             func_input=op_input,
             func_output_model=op_output_type,
@@ -358,6 +360,7 @@ def inspect_operation(
             path_input=path_input,
             header_input=header_input,
         ),
+        default_status_code=resp_status,
     )
 
 

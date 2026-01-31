@@ -12,7 +12,7 @@ to an existing app or just add a single typed resource to your project.
 - [ ] add binaryIO and textIO input/output data
   - [ ] keep api resource stateless -> if context is needed it should be declared as input to the method
   - [ ] set up classes for binaryIO (and textIO?)
-  - [ ] implement usage of default status for operation and add test
+  - [x] implement usage of default status for operation and add test
   - [ ] add generic class holding output, where more details can be set
   - [ ] check "more_response_docs" compatibility, what if default status is defined there again?
   - [ ] sketch out Multipart form data?

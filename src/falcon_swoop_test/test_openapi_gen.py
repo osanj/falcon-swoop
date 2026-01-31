@@ -12,7 +12,9 @@ from falcon_swoop import (
     OpRequestDoc,
     OpResponseDoc,
     OpTypeDoc,
-    OpenApiGenerator, path_param, header_param,
+    OpenApiGenerator,
+    path_param,
+    header_param,
 )
 from falcon_swoop.openapi.spec import (
     OpenApiReference,
@@ -146,9 +148,9 @@ class Post(ApiBaseResource):
         return PostView(id=post_id, content="lorem ipsum")
 
     @operation(method="DELETE")
-    def delete_post(self,
-                    post_id: int = path_param(alias="postId"),
-                    admin_key: str = header_param(alias="X-ADMIN-KEY")) -> None:
+    def delete_post(
+        self, post_id: int = path_param(alias="postId"), admin_key: str = header_param(alias="X-ADMIN-KEY")
+    ) -> None:
         pass
 
 

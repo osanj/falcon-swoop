@@ -176,12 +176,14 @@ class ApiBaseResource:
         kwargs.update(self.__collect_typed_kwargs(req.headers, op.func_spec.header_input))
         return op, kwargs
 
-    def __finish_operation(self, resp: falcon.Response | falcon.asgi.Response, data_output: Any | None) -> None:
+    def __finish_operation(
+        self, resp: falcon.Response | falcon.asgi.Response, data_output: Any | None, status_code: int
+    ) -> None:
         if data_output is not None:
             if not isinstance(data_output, BaseModel):
                 raise ValueError(f"Expected object of subtype {BaseModel.__name__}, got {type(data_output)} instead")
             resp.media = data_output.model_dump()
-        resp.status = falcon.HTTP_OK
+        resp.status_code = status_code
 
     def __on_request(
         self,
@@ -208,7 +210,7 @@ class ApiBaseResource:
         data_output = op.func(self, **kwargs)
         self.__context = None
 
-        self.__finish_operation(resp, data_output)
+        self.__finish_operation(resp, data_output, op.default_status_code)
 
     async def __on_request_async(
         self,
@@ -236,4 +238,4 @@ class ApiBaseResource:
         data_output = await op.func(self, **kwargs)
         self.__context = None
 
-        self.__finish_operation(resp, data_output)
+        self.__finish_operation(resp, data_output, op.default_status_code)
