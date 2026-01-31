@@ -8,6 +8,7 @@ from typing_extensions import NotRequired, Self, Unpack
 from pydantic import create_model, BaseModel
 from pydantic.fields import FieldInfo
 
+from falcon_swoop.context import OpContext, OpAsgiContext
 from falcon_swoop.error import FalconSwoopConfigError, FalconSwoopConfigWarning
 from falcon_swoop.param import OpParam, OpParamKind, OpParamType
 from falcon_swoop.type_util import is_union_type, safe_issubclass, unpack_optional_type, unpack_literal_type
@@ -93,8 +94,7 @@ class OpFuncSpec:
     query_input: OpFuncParamInput | None
     path_input: OpFuncParamInput | None
     header_input: OpFuncParamInput | None
-    # allow raw input?
-    # accept mime type?
+    context_input_name: str | None
     func_output_model: type[BaseModel] | None
 
 
@@ -119,8 +119,8 @@ class OpInfo:
         return self.func.__name__
 
     @property
-    def is_coroutine(self) -> bool:
-        return inspect.iscoroutinefunction(self.func)
+    def is_sync(self) -> bool:
+        return not inspect.iscoroutinefunction(self.func)
 
 
 @dataclass
@@ -237,6 +237,16 @@ def find_params(
     return func_input, used_param_names
 
 
+def find_context_input(
+    signature: inspect.Signature,
+    param_names: set[str],
+    is_sync: bool,
+) -> str | None:
+    # error if incorrect type shows up (sync -> OpContext, async -> OpAsgiContext)
+    # error if multiple parameters hint the context class
+    return None
+
+
 class OperationKwArgs(TypedDict):
     operation_id: NotRequired[str]
     summary: NotRequired[str]
@@ -257,23 +267,26 @@ def get_operation_id_or_default(operation_id: str | None, func: Callable[..., An
     return "".join([func_name_parts[0]] + [p.capitalize() for p in func_name_parts[1:]])
 
 
-def inspect_operation(
-    method: HttpMethod,
+def inspect_function(
     func: Callable[..., Any],
-    **kwargs: Unpack[OperationKwArgs],
-) -> OpInfoWithSpec:
+    op_id: str,
+) -> OpFuncSpec:
     signature = inspect.signature(func)
+    is_async = inspect.iscoroutinefunction(func)
+
     op_input = None
     op_output_type = None
-    op_id = get_operation_id_or_default(kwargs.get("operation_id"), func)
 
     input_params = signature.parameters.keys() - {"self"}
 
     header_input, header_params = find_params(signature, input_params, OpParamKind.HEADER, op_id, case_sensitive=False)
     query_input, query_params = find_params(signature, input_params, OpParamKind.QUERY, op_id)
     path_input, path_params = find_params(signature, input_params, OpParamKind.PATH, op_id)
-
     input_params.difference_update(header_params | query_params | path_params)
+
+    context_input_name = find_context_input(signature, input_params, is_sync=not is_async)
+    if context_input_name is not None:
+        input_params.discard(context_input_name)
 
     if len(input_params) == 1:
         param = signature.parameters[input_params.pop()]
@@ -303,6 +316,27 @@ def inspect_operation(
         if not issubclass(signature.return_annotation, BaseModel):
             raise FalconSwoopConfigError(f"Return type needs to be a subclass of {BaseModel.__name__}")
         op_output_type = signature.return_annotation
+
+    return OpFuncSpec(
+        func_input=op_input,
+        func_output_model=op_output_type,
+        query_input=query_input,
+        path_input=path_input,
+        header_input=header_input,
+        context_input_name=context_input_name,
+    )
+
+
+def inspect_operation(
+    method: HttpMethod,
+    func: Callable[..., Any],
+    **kwargs: Unpack[OperationKwArgs],
+) -> OpInfoWithSpec:
+    op_id = get_operation_id_or_default(kwargs.get("operation_id"), func)
+
+    func_spec = inspect_function(func, op_id)
+    op_input = func_spec.func_input
+    op_output_type = func_spec.func_output_model
 
     # default_accept: list[MimeType] = ["application/json"]
     # accept=kwargs.get("accept", default_accept),
@@ -353,13 +387,7 @@ def inspect_operation(
         response_docs=response_docs,
         func=func,
         # ---
-        func_spec=OpFuncSpec(
-            func_input=op_input,
-            func_output_model=op_output_type,
-            query_input=query_input,
-            path_input=path_input,
-            header_input=header_input,
-        ),
+        func_spec=func_spec,
         default_status_code=resp_status,
     )
 

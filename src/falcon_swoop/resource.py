@@ -1,60 +1,26 @@
 import collections
 import warnings
-from dataclasses import dataclass
 from typing import Any, Generator, Mapping
 
 import falcon
 import falcon.asgi
 from pydantic import BaseModel, ValidationError
 
-from falcon_swoop.error import FalconSwoopError, FalconSwoopConfigError, FalconSwoopWarning
-from falcon_swoop.operation import ATTR_OPERATION, HttpMethod, OpInfo, OpInfoWithSpec, OpFuncParamInput, operation
+from falcon_swoop.context import OpContext, OpAsgiContext
+from falcon_swoop.error import FalconSwoopConfigError, FalconSwoopWarning
+from falcon_swoop.operation import ATTR_OPERATION, HttpMethod, OpInfo, OpInfoWithSpec, OpFuncParamInput
 from falcon_swoop.route import ApiRoute
-
-
-@dataclass
-class RequestContext:
-    req: falcon.Request
-    resp: falcon.Response
-
-
-@dataclass
-class AsgiRequestContext:
-    req: falcon.asgi.Request
-    resp: falcon.asgi.Response
 
 
 class ApiBaseResource:
 
     def __init__(self, route: str):
         self.api_route = ApiRoute(route)
-        self.__context: AsgiRequestContext | RequestContext | None = None
         self.__operation_by_method = self.__setup()
 
     def api_ops(self) -> Generator[OpInfo, None, None]:
         for op in self.__operation_by_method.values():
             yield op
-
-    def __get_ctx(self) -> AsgiRequestContext | RequestContext:
-        if self.__context is None:
-            raise FalconSwoopError(
-                f"No context available, a (async) context is only available within methods decorated with @{operation.__name__}"
-            )
-        return self.__context
-
-    @property
-    def ctx(self) -> RequestContext:
-        ctx = self.__get_ctx()
-        if isinstance(ctx, AsgiRequestContext):
-            raise FalconSwoopError(f"The available context is asynchronous, please use '.ctx' instead")
-        return ctx
-
-    @property
-    def asgi_ctx(self) -> AsgiRequestContext:
-        ctx = self.__get_ctx()
-        if isinstance(ctx, RequestContext):
-            raise FalconSwoopError(f"The available context is synchronous, please use '.asgi_ctx' instead")
-        return ctx
 
     def __check_operation_config(
         self, operations_by_method: dict[HttpMethod, list[OpInfo]]
@@ -127,7 +93,7 @@ class ApiBaseResource:
         self.__check_path_parameter_match(operation_by_method)
         for method, op in operation_by_method.items():
             if isinstance(op, OpInfoWithSpec):
-                self.__patch_op(method, sync=not op.is_coroutine)
+                self.__patch_op(method, sync=op.is_sync)
         return operation_by_method
 
     def __collect_typed_kwargs(
@@ -204,12 +170,13 @@ class ApiBaseResource:
             else:
                 # calling req.get_media() again to maintain default falcon behavior for empty body when JSON is expected
                 data = spec.func_input.model_type(**req.get_media())
+
+            if spec.context_input_name is not None:
+                kwargs[spec.context_input_name] = OpContext(req, resp)
+
             kwargs[spec.func_input.name] = data
 
-        self.__context = RequestContext(req, resp)
         data_output = op.func(self, **kwargs)
-        self.__context = None
-
         self.__finish_operation(resp, data_output, op.default_status_code)
 
     async def __on_request_async(
@@ -232,10 +199,11 @@ class ApiBaseResource:
                 # calling req.get_media() again to maintain default falcon behavior for empty body when JSON is expected
                 media = await req.get_media()
                 data = spec.func_input.model_type(**media)
+
+            if spec.context_input_name is not None:
+                kwargs[spec.context_input_name] = OpAsgiContext(req, resp)
+
             kwargs[spec.func_input.name] = data
 
-        self.__context = AsgiRequestContext(req, resp)
         data_output = await op.func(self, **kwargs)
-        self.__context = None
-
         self.__finish_operation(resp, data_output, op.default_status_code)
