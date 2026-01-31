@@ -10,6 +10,12 @@ to an existing app or just add a single typed resource to your project.
 - [x] add params to openapi docgen
 - [ ] add security schemes to openapi docgen
 - [ ] add binaryIO and textIO input/output data
+  - [ ] keep api resource stateless -> if context is needed it should be declared as input to the method
+  - [ ] set up classes for binaryIO (and textIO?)
+  - [ ] implement usage of default status for operation and add test
+  - [ ] add generic class holding output, where more details can be set
+  - [ ] check "more_response_docs" compatibility, what if default status is defined there again?
+  - [ ] sketch out Multipart form data?
 - [x] make certain query and header parameters optional (e.g. `my_query_param: int | None = ...`)
 - [x] allow literal and str-Enum for parameters
 - [x] warning that header params are case-insensitive (if name/alias provided that is not entirely upper/lowercase)
