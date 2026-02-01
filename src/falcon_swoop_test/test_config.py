@@ -7,6 +7,8 @@ from falcon_swoop import (
     ApiBaseResource,
     FalconSwoopConfigError,
     FalconSwoopConfigWarning,
+    OpAsgiContext,
+    OpContext,
     operation,
     header_param,
     path_param,
@@ -207,4 +209,25 @@ def test_config_warning_for_header_case_insensitivity() -> None:
                 self,
                 accept: str | None = header_param(alias="Accept", default=None),
             ) -> DummyModel:
+                return DummyModel()
+
+
+def test_config_error_for_multiple_contexts() -> None:
+    with pytest.raises(FalconSwoopConfigError, match="Duplicated context parameter"):
+
+        class Resource(ApiBaseResource):
+            @operation(method="GET")
+            def get(self, ctx: OpContext, extra_ctx: OpContext) -> DummyModel:
+                return DummyModel()
+
+
+def test_config_error_for_wrong_context_type() -> None:
+    with pytest.raises(
+        FalconSwoopConfigError,
+        match=f"Argument ctx has type {OpAsgiContext}, but expected {OpContext}",
+    ):
+
+        class Resource(ApiBaseResource):
+            @operation(method="GET")
+            def get(self, ctx: OpAsgiContext) -> DummyModel:
                 return DummyModel()

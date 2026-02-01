@@ -242,9 +242,30 @@ def find_context_input(
     param_names: set[str],
     is_sync: bool,
 ) -> str | None:
-    # error if incorrect type shows up (sync -> OpContext, async -> OpAsgiContext)
-    # error if multiple parameters hint the context class
-    return None
+    expected_type = OpContext if is_sync else OpAsgiContext
+    incorrect_type = OpAsgiContext if is_sync else OpContext
+
+    context_param_name: str | None = None
+    for param_name in param_names:
+        input_argument = signature.parameters[param_name]
+        input_type = input_argument.annotation
+
+        if input_type == incorrect_type:
+            operation_kind = "synchronous" if is_sync else "asynchronous"
+            raise FalconSwoopConfigError(
+                f"Argument {param_name} has type {input_type}, but expected {expected_type} "
+                f"since the operation is {operation_kind}"
+            )
+
+        if input_type == expected_type:
+            if context_param_name is not None:
+                raise FalconSwoopConfigError(
+                    f"Duplicated context parameter, {context_param_name} already receives the operation context, "
+                    f"{param_name} should be removed"
+                )
+            context_param_name = param_name
+
+    return context_param_name
 
 
 class OperationKwArgs(TypedDict):
