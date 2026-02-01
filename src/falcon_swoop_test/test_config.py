@@ -14,6 +14,7 @@ from falcon_swoop import (
     path_param,
     query_param,
     OpOutput,
+    OpResponseDoc,
 )
 
 
@@ -251,3 +252,20 @@ def test_config_output_with_none_is_possible() -> None:
         @operation(method="GET")
         def get(self) -> OpOutput[None]:
             return OpOutput(payload=None, status_code=400)
+
+
+def test_config_error_for_default_status_code() -> None:
+    status_code = 299
+    with pytest.raises(
+        FalconSwoopConfigError,
+        match=f"Response docs for default HTTP status code {status_code} are generated",
+    ):
+
+        class Resource(ApiBaseResource):
+            @operation(
+                method="GET",
+                default_status=(status_code, "Something was created"),
+                more_response_docs={status_code: OpResponseDoc("Something else was done")},
+            )
+            def post(self) -> None:
+                pass
