@@ -302,6 +302,7 @@ def inspect_function(
     signature = inspect.signature(func)
     is_async = inspect.iscoroutinefunction(func)
 
+    # --- http request params of various sort
     input_params = signature.parameters.keys() - {"self"}
 
     header_input, header_params = find_params(signature, input_params, OpParamKind.HEADER, op_id, case_sensitive=False)
@@ -313,6 +314,7 @@ def inspect_function(
     if context_input_name is not None:
         input_params.discard(context_input_name)
 
+    # --- http request body
     op_input = None
     if len(input_params) == 1:
         param = signature.parameters[input_params.pop()]
@@ -336,25 +338,27 @@ def inspect_function(
     elif len(input_params) > 1:
         raise FalconSwoopConfigError("More than 1 parameter found")
 
-    if signature.return_annotation not in (signature.empty, None):
-        output_candidate = signature.return_annotation
-        hinted_wrapper = False
+    # --- http response body
+    output_candidate = signature.return_annotation
+    hinted_wrapper = False
+    if output_candidate == signature.empty:
+        output_candidate = None
 
-        if type_util.is_generic_type(output_candidate, OpOutput):
-            output_candidate = type_util.unpack_generic_type(output_candidate)[0]
-        elif type_util.safe_issubclass(output_candidate, OpOutput):
-            raise FalconSwoopConfigError(
-                f"The payload type for {OpOutput.__name__} is missing, "
-                f"the type hint should be {OpOutput.__name__}[<return_type>]"
-            )
+    if type_util.is_generic_type(output_candidate, OpOutput):
+        output_candidate = type_util.unpack_generic_type(output_candidate, none_type_to_none=True)[0]
+        hinted_wrapper = True
+    elif type_util.safe_issubclass(output_candidate, OpOutput):
+        raise FalconSwoopConfigError(
+            f"The payload type for {OpOutput.__name__} is missing, "
+            f"the type hint should be {OpOutput.__name__}[<return_type>]"
+        )
+
+    if output_candidate is not None:
         if type_util.is_union_type(output_candidate):
             raise FalconSwoopConfigError("Return type cannot be a union or optional")
         if not type_util.safe_issubclass(output_candidate, BaseModel):
             raise FalconSwoopConfigError(f"Return type needs to be a subclass of {BaseModel.__name__}")
-
-        op_output = OpFuncOutput(model_type=output_candidate, hinted_wrapper=hinted_wrapper)
-    else:
-        op_output = OpFuncOutput(model_type=None, hinted_wrapper=False)
+    op_output = OpFuncOutput(model_type=output_candidate, hinted_wrapper=hinted_wrapper)
 
     return OpFuncSpec(
         func_input=op_input,

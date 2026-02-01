@@ -244,3 +244,10 @@ def test_config_error_for_output_without_type() -> None:
             @operation(method="GET")
             def get(self) -> OpOutput:  # type: ignore[type-arg]
                 return OpOutput(payload=None, status_code=400)
+
+
+def test_config_output_with_none_is_possible() -> None:
+    class Resource(ApiBaseResource):
+        @operation(method="GET")
+        def get(self) -> OpOutput[None]:
+            return OpOutput(payload=None, status_code=400)
