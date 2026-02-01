@@ -2,7 +2,7 @@ from typing import Any, Literal
 
 import falcon
 
-from falcon_swoop import ApiBaseResource, operation, query_param, header_param, operation_doc
+from falcon_swoop import ApiBaseResource, OpAsgiContext, operation, query_param, header_param, operation_doc
 from falcon_swoop_test.resource.common import WeatherLevel, BasicInput, BasicOutput, country_param, city_id_param
 
 
@@ -20,8 +20,8 @@ class BasicResource1(ApiBaseResource):
         return BasicOutput(data={"limit": limit, "offset": offset})
 
     @operation(method="POST")
-    async def post_something(self, basic_input: BasicInput) -> BasicOutput:
-        content_type = self.asgi_ctx.req.content_type
+    async def post_something(self, basic_input: BasicInput, ctx: OpAsgiContext) -> BasicOutput:
+        content_type = ctx.req.content_type
         return BasicOutput(data={"param1": basic_input.param1, "content_type": content_type})
 
 
