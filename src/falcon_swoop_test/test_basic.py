@@ -35,7 +35,7 @@ def test_missing_input_raises_400(resource1: SimulatedResource) -> None:
     [
         ["BasicResource1", {"PUT", "PATCH", "DELETE"}, {"GET", "POST", "OPTIONS"}],
         ["BasicResource2", {"POST"}, {"GET", "PUT", "PATCH", "DELETE", "OPTIONS"}],
-        ["BasicResource3", {"POST", "PUT", "PATCH", "DELETE"}, {"GET", "OPTIONS"}],
+        ["BasicResource3", {"POST", "PATCH", "DELETE"}, {"GET", "PUT", "OPTIONS"}],
     ],
 )
 def test_unused_operation_raises_405(
@@ -150,12 +150,21 @@ def test_string_literal(resource3: SimulatedResource) -> None:
     assert resp_bad.status_code == 400
 
 
+def test_status_code_via_output(resource3: SimulatedResource) -> None:
+    input_model = BasicInput(param1="stormclouds are gathering")
+    resp1 = resource3.simulate_put(params={"transient": False}, json_model=input_model)
+    assert resp1.status_code == 201
+
+    resp2 = resource3.simulate_put(params={"transient": True}, json_model=input_model)
+    assert resp2.status_code == 200
+
+
 @pytest.mark.parametrize(
     "resource_name, exp_op_ids",
     [
         ["BasicResource1", {"getSomething", "postSomething"}],
         ["BasicResource2", {"getCityData", "putCityData", "updateCityData"}],
-        ["BasicResource3", {"getWeather"}],
+        ["BasicResource3", {"getWeather", "addWeatherSample"}],
     ],
 )
 def test_openapi_generation(resource_name: str, exp_op_ids: set[str], resource_loader: SimulatedResourceLoader) -> None:

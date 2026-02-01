@@ -57,3 +57,11 @@ def unpack_literal_type(hint: Any) -> UnpackedLiteralType:
         is_literal=True,
         literal_values=list(get_args(hint)),
     )
+
+
+def is_generic_type(hint: Any, exp_type: type[Any]) -> bool:
+    return get_origin(hint) is exp_type
+
+
+def unpack_generic_type(hint: Any) -> list[Any]:
+    return list(get_args(hint))

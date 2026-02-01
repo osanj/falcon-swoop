@@ -10,8 +10,9 @@ from pydantic.fields import FieldInfo
 
 from falcon_swoop.context import OpContext, OpAsgiContext
 from falcon_swoop.error import FalconSwoopConfigError, FalconSwoopConfigWarning
+from falcon_swoop.output import OpOutput
 from falcon_swoop.param import OpParam, OpParamKind, OpParamType
-from falcon_swoop.type_util import is_union_type, safe_issubclass, unpack_optional_type, unpack_literal_type
+import falcon_swoop.type_util as type_util
 
 HttpMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]  # , "OPTIONS"]
 MimeType = Literal["application/json"]
@@ -19,7 +20,7 @@ ATTR_OPERATION = "operation"
 
 
 @dataclass
-class OpApiModelInput:
+class OpFuncInput:
     name: str
     model_type: type[BaseModel]
     optional: bool = False
@@ -89,13 +90,19 @@ class OpFuncParamInput:
 
 
 @dataclass
+class OpFuncOutput:
+    model_type: type[BaseModel] | None
+    hinted_wrapper: bool
+
+
+@dataclass
 class OpFuncSpec:
-    func_input: OpApiModelInput | None
+    func_input: OpFuncInput | None
+    func_output: OpFuncOutput
     query_input: OpFuncParamInput | None
     path_input: OpFuncParamInput | None
     header_input: OpFuncParamInput | None
     context_input_name: str | None
-    func_output_model: type[BaseModel] | None
 
 
 @dataclass
@@ -140,8 +147,8 @@ def find_param_type(
         raise FalconSwoopConfigError(
             f"{param_error_hint} requires type annotation, possible types are {param.allow_types}"
         )
-    if is_union_type(annotation):
-        unpacked_opt = unpack_optional_type(annotation)
+    if type_util.is_union_type(annotation):
+        unpacked_opt = type_util.unpack_optional_type(annotation)
         if unpacked_opt.is_optional_for_single_type:
             if param.allow_optional:
                 annotation = unpacked_opt.types_without_none[0]
@@ -151,14 +158,14 @@ def find_param_type(
         else:
             raise FalconSwoopConfigError(f"{param_error_hint} cannot be a union")
 
-    unpacked_lit = unpack_literal_type(annotation)
+    unpacked_lit = type_util.unpack_literal_type(annotation)
     if unpacked_lit.is_literal:
         allowed_literal_types = (str, int, bool)
         if not unpacked_lit.has_only_values_of_type(allowed_literal_types):
             raise FalconSwoopConfigError(
                 f"{param_error_hint} must only have literal values of type {allowed_literal_types}"
             )
-    elif safe_issubclass(annotation, Enum):
+    elif type_util.safe_issubclass(annotation, Enum):
         if not issubclass(annotation, str):
             raise FalconSwoopConfigError(
                 f"{param_error_hint} must be a string enum to be usable, either subclass from str and Enum or use StrEnum"
@@ -295,9 +302,6 @@ def inspect_function(
     signature = inspect.signature(func)
     is_async = inspect.iscoroutinefunction(func)
 
-    op_input = None
-    op_output_type = None
-
     input_params = signature.parameters.keys() - {"self"}
 
     header_input, header_params = find_params(signature, input_params, OpParamKind.HEADER, op_id, case_sensitive=False)
@@ -309,38 +313,52 @@ def inspect_function(
     if context_input_name is not None:
         input_params.discard(context_input_name)
 
+    op_input = None
     if len(input_params) == 1:
         param = signature.parameters[input_params.pop()]
         param_annotation = param.annotation
         param_type = param.annotation
         optional = False
 
-        if is_union_type(param_annotation):
-            unpacked = unpack_optional_type(param_annotation)
+        if type_util.is_union_type(param_annotation):
+            unpacked = type_util.unpack_optional_type(param_annotation)
             if unpacked.is_optional_for_single_type:
                 param_type = unpacked.types_without_none[0]
                 optional = True
             else:
                 raise FalconSwoopConfigError(f"Operation input parameter {param.name} cannot be a union")
 
-        if not issubclass(param_type, BaseModel):
+        if not type_util.safe_issubclass(param_type, BaseModel):
             raise FalconSwoopConfigError(
                 f"Operation input parameter {param.name} needs to be a subclass of {BaseModel.__name__}"
             )
-        op_input = OpApiModelInput(param.name, param_type, optional)
+        op_input = OpFuncInput(param.name, param_type, optional)
     elif len(input_params) > 1:
         raise FalconSwoopConfigError("More than 1 parameter found")
 
     if signature.return_annotation not in (signature.empty, None):
-        if is_union_type(signature.return_annotation):
+        output_candidate = signature.return_annotation
+        hinted_wrapper = False
+
+        if type_util.is_generic_type(output_candidate, OpOutput):
+            output_candidate = type_util.unpack_generic_type(output_candidate)[0]
+        elif type_util.safe_issubclass(output_candidate, OpOutput):
+            raise FalconSwoopConfigError(
+                f"The payload type for {OpOutput.__name__} is missing, "
+                f"the type hint should be {OpOutput.__name__}[<return_type>]"
+            )
+        if type_util.is_union_type(output_candidate):
             raise FalconSwoopConfigError("Return type cannot be a union or optional")
-        if not issubclass(signature.return_annotation, BaseModel):
+        if not type_util.safe_issubclass(output_candidate, BaseModel):
             raise FalconSwoopConfigError(f"Return type needs to be a subclass of {BaseModel.__name__}")
-        op_output_type = signature.return_annotation
+
+        op_output = OpFuncOutput(model_type=output_candidate, hinted_wrapper=hinted_wrapper)
+    else:
+        op_output = OpFuncOutput(model_type=None, hinted_wrapper=False)
 
     return OpFuncSpec(
         func_input=op_input,
-        func_output_model=op_output_type,
+        func_output=op_output,
         query_input=query_input,
         path_input=path_input,
         header_input=header_input,
@@ -357,7 +375,7 @@ def inspect_operation(
 
     func_spec = inspect_function(func, op_id)
     op_input = func_spec.func_input
-    op_output_type = func_spec.func_output_model
+    op_output_type = func_spec.func_output.model_type
 
     # default_accept: list[MimeType] = ["application/json"]
     # accept=kwargs.get("accept", default_accept),

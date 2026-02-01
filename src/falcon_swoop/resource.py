@@ -144,7 +144,10 @@ class ApiBaseResource:
         return op, kwargs
 
     def __finish_operation(
-        self, op: OpInfoWithSpec, resp: falcon.Response | falcon.asgi.Response, output: Any | None,
+        self,
+        op: OpInfoWithSpec,
+        resp: falcon.Response | falcon.asgi.Response,
+        output: Any | None,
     ) -> None:
         if not isinstance(output, OpOutput):
             output = OpOutput(payload=output)

@@ -13,6 +13,7 @@ from falcon_swoop import (
     header_param,
     path_param,
     query_param,
+    OpOutput,
 )
 
 
@@ -231,3 +232,15 @@ def test_config_error_for_wrong_context_type() -> None:
             @operation(method="GET")
             def get(self, ctx: OpAsgiContext) -> DummyModel:
                 return DummyModel()
+
+
+def test_config_error_for_output_without_type() -> None:
+    with pytest.raises(
+        FalconSwoopConfigError,
+        match=f"The payload type for {OpOutput.__name__} is missing",
+    ):
+
+        class Resource(ApiBaseResource):
+            @operation(method="GET")
+            def get(self) -> OpOutput:  # type: ignore[type-arg]
+                return OpOutput(payload=None, status_code=400)

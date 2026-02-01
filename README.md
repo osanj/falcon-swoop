@@ -13,7 +13,8 @@ to an existing app or just add a single typed resource to your project.
   - [x] keep api resource stateless -> if context is needed it should be declared as input to the method
   - [ ] set up classes for binaryIO (and textIO?)
   - [x] implement usage of default status for operation and add test
-  - [ ] add generic class holding output, where more details can be set
+  - [x] add generic class holding output, where more details can be set
+  - [ ] make generic class holding output compatible with None
   - [ ] check "more_response_docs" compatibility, what if default status is defined there again?
   - [ ] sketch out Multipart form data?
 - [x] make certain query and header parameters optional (e.g. `my_query_param: int | None = ...`)
@@ -23,6 +24,7 @@ to an existing app or just add a single typed resource to your project.
 - [x] add support for optional input objects
 - [ ] add support for (de)serialization to yaml and other formats
 - [ ] add support for "more_response_docs" and way to annotate response with status + mime?
+- [ ] handle missing annotations for input, params, context and return value
 - [ ] use `falcon._typing.ResponderCallable` and async types or redefine proper callable types
 - [x] make everything work for async app
 - [ ] grid CI pipeline testing combinations of python, falcon and pydantic

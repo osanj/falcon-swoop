@@ -2,7 +2,7 @@ from typing import Any, Literal
 
 import falcon
 
-from falcon_swoop import ApiBaseResource, OpAsgiContext, operation, query_param, header_param, operation_doc
+from falcon_swoop import ApiBaseResource, OpAsgiContext, OpOutput, operation, query_param, header_param, operation_doc
 from falcon_swoop_test.resource.common import WeatherLevel, BasicInput, BasicOutput, country_param, city_id_param
 
 
@@ -74,3 +74,15 @@ class BasicResource3(ApiBaseResource):
         unit: Literal["C", "F"] = query_param(default="C"),
     ) -> BasicOutput:
         return BasicOutput(data={"temperature": 20, "mode": mode.name, "unit": unit})
+
+    @operation(method="PUT")
+    async def add_weather_sample(
+        self,
+        sample: BasicInput,
+        transient: bool = query_param(default=True),
+    ) -> OpOutput[BasicOutput]:
+        payload = BasicOutput(data={"param1": sample.param1, "transient": transient})
+        return OpOutput(
+            payload=payload,
+            status_code=200 if transient else 201,
+        )
