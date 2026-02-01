@@ -5,10 +5,11 @@ from typing import Generic, Iterable, TypeVar
 from pydantic import BaseModel
 
 from falcon_swoop.error import FalconSwoopError
+from falcon_swoop.http_io import HttpBinary, HttpText
 
 
-# TODO: add other types: str, bytes, Multipart?
-OUTPUT_TYPES = (BaseModel, types.NoneType)
+# TODO: add Multipart?
+OUTPUT_TYPES = (BaseModel, types.NoneType, HttpBinary, HttpText)
 T = TypeVar("T", bound=BaseModel | None)
 
 
