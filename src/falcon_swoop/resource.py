@@ -9,6 +9,7 @@ from pydantic import BaseModel, ValidationError
 from falcon_swoop.context import OpContext, OpAsgiContext
 from falcon_swoop.error import FalconSwoopConfigError, FalconSwoopWarning
 from falcon_swoop.operation import ATTR_OPERATION, HttpMethod, OpInfo, OpInfoWithSpec, OpFuncParamInput
+from falcon_swoop.output import OpOutput
 from falcon_swoop.route import ApiRoute
 
 
@@ -143,13 +144,29 @@ class ApiBaseResource:
         return op, kwargs
 
     def __finish_operation(
-        self, resp: falcon.Response | falcon.asgi.Response, data_output: Any | None, status_code: int
+        self, op: OpInfoWithSpec, resp: falcon.Response | falcon.asgi.Response, output: Any | None,
     ) -> None:
-        if data_output is not None:
-            if not isinstance(data_output, BaseModel):
-                raise ValueError(f"Expected object of subtype {BaseModel.__name__}, got {type(data_output)} instead")
-            resp.media = data_output.model_dump()
-        resp.status_code = status_code
+        if not isinstance(output, OpOutput):
+            output = OpOutput(payload=output)
+
+        payload = output.payload
+        if payload is None:
+            pass
+        elif isinstance(output.payload, BaseModel):
+            resp.media = payload.model_dump(by_alias=True)
+        else:
+            raise ValueError(f"Got payload of unsupported type: {type(payload)}")
+
+        if output.cache_control is not None:
+            resp.cache_control = output.cache_control
+        if output.etag is not None:
+            resp.etag = output.etag
+        if output.expires is not None:
+            resp.expires = output.expires
+        if output.content_type is not None:
+            resp.content_type = output.content_type
+        resp.headers.update(output.headers)
+        resp.status_code = output.status_code if output.status_code is not None else op.default_status_code
 
     def __on_request(
         self,
@@ -177,7 +194,7 @@ class ApiBaseResource:
             kwargs[spec.func_input.name] = data
 
         data_output = op.func(self, **kwargs)
-        self.__finish_operation(resp, data_output, op.default_status_code)
+        self.__finish_operation(op, resp, data_output)
 
     async def __on_request_async(
         self,
@@ -206,4 +223,4 @@ class ApiBaseResource:
             kwargs[spec.func_input.name] = data
 
         data_output = await op.func(self, **kwargs)
-        self.__finish_operation(resp, data_output, op.default_status_code)
+        self.__finish_operation(op, resp, data_output)
