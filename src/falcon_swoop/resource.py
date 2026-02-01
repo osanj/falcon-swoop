@@ -155,7 +155,7 @@ class ApiBaseResource:
         payload = output.payload
         if payload is None:
             pass
-        elif isinstance(output.payload, BaseModel):
+        elif isinstance(payload, BaseModel):
             resp.media = payload.model_dump(by_alias=True)
         else:
             raise ValueError(f"Got payload of unsupported type: {type(payload)}")

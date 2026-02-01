@@ -27,7 +27,7 @@ class OpFuncInput:
 
 
 @dataclass
-class OpApiParamInput:
+class OpFuncParam:
     name: str
     annotation: OpParamType  # TODO: remove?
     annotation_orig: Any
@@ -84,8 +84,8 @@ OpResponseDocByHttpCode = dict[int, OpResponseDoc]
 @dataclass
 class OpFuncParamInput:
     model_type: type[BaseModel]
-    param_by_name: dict[str, OpApiParamInput]
-    param_by_input_name: dict[str, OpApiParamInput]
+    param_by_name: dict[str, OpFuncParam]
+    param_by_input_name: dict[str, OpFuncParam]
     case_sensitive: bool
 
 
@@ -209,7 +209,7 @@ def find_params(
                 f"{error_start} is type hinted as optional, but will never be None because of default value",
                 FalconSwoopConfigWarning,
             )
-        param_input = OpApiParamInput(
+        param_input = OpFuncParam(
             name=param_name,
             annotation=annotation,
             annotation_orig=input_argument.annotation,

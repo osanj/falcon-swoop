@@ -1,8 +1,9 @@
 # falcon-swoop
 
-Easy-to-define typed API resources for [falcon](https://github.com/falconry/falcon) based on [pydantic](https://github.com/pydantic/pydantic) models.
-Automatic OpenAPI doc generation included. Fully opt-in: Use it for all your resources, start attaching typed operations
-to an existing app or just add a single typed resource to your project.
+Easy-to-define typed API resources for [falcon](https://github.com/falconry/falcon) based on [pydantic](https://github.com/pydantic/pydantic) models bringing some FastAPI style
+convenience to your favorite web framework. Automatic OpenAPI doc generation included.
+It is fully opt-in: Use it for all your resources, start attaching typed operations
+to an existing app or just add one single typed resource to your project.
 
 
 ### Open Items
@@ -14,7 +15,7 @@ to an existing app or just add a single typed resource to your project.
   - [ ] set up classes for binaryIO (and textIO?)
   - [x] implement usage of default status for operation and add test
   - [x] add generic class holding output, where more details can be set
-  - [ ] make generic class holding output compatible with None
+  - [x] make generic class holding output compatible with None
   - [ ] check "more_response_docs" compatibility, what if default status is defined there again?
   - [ ] sketch out Multipart form data?
 - [x] make certain query and header parameters optional (e.g. `my_query_param: int | None = ...`)
