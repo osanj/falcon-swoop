@@ -1,5 +1,8 @@
 from typing import BinaryIO, TextIO
 import io
+import types
+
+from pydantic import BaseModel
 
 
 class HttpBinary:
@@ -21,3 +24,7 @@ class HttpText:
         self.tio = text
         self.content_type = content_type
         self.content_length = content_length
+
+
+# TODO: add Multipart?
+BODY_TYPES = (BaseModel, types.NoneType, HttpBinary, HttpText)

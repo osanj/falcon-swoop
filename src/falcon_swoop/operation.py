@@ -10,6 +10,7 @@ from pydantic.fields import FieldInfo
 
 from falcon_swoop.context import OpContext, OpAsgiContext
 from falcon_swoop.error import FalconSwoopConfigError, FalconSwoopConfigWarning
+from falcon_swoop.http_io import BODY_TYPES
 from falcon_swoop.output import OpOutput
 from falcon_swoop.param import OpParam, OpParamKind, OpParamType
 import falcon_swoop.type_util as type_util
@@ -330,13 +331,13 @@ def inspect_function(
             else:
                 raise FalconSwoopConfigError(f"Operation input parameter {param.name} cannot be a union")
 
-        if not type_util.safe_issubclass(param_type, BaseModel):
+        if not type_util.safe_issubclass(param_type, BODY_TYPES):
             raise FalconSwoopConfigError(
-                f"Operation input parameter {param.name} needs to be a subclass of {BaseModel.__name__}"
+                f"Operation input parameter {param.name} needs to be one of {BODY_TYPES}, bot got {param_type}"
             )
         op_input = OpFuncInput(param.name, param_type, optional)
     elif len(input_params) > 1:
-        raise FalconSwoopConfigError("More than 1 parameter found")
+        raise FalconSwoopConfigError(f"More than 1 parameter found that could be http body: {','.join(input_params)}")
 
     # --- http response body
     output_candidate = signature.return_annotation
@@ -356,8 +357,8 @@ def inspect_function(
     if output_candidate is not None:
         if type_util.is_union_type(output_candidate):
             raise FalconSwoopConfigError("Return type cannot be a union or optional")
-        if not type_util.safe_issubclass(output_candidate, BaseModel):
-            raise FalconSwoopConfigError(f"Return type needs to be a subclass of {BaseModel.__name__}")
+        if not type_util.safe_issubclass(output_candidate, BODY_TYPES):
+            raise FalconSwoopConfigError(f"Return type needs to be one of {BODY_TYPES}, bot got {output_candidate}")
     op_output = OpFuncOutput(model_type=output_candidate, hinted_wrapper=hinted_wrapper)
 
     return OpFuncSpec(

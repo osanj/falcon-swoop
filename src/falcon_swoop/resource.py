@@ -1,4 +1,5 @@
 import collections
+import io
 import warnings
 from typing import Any, Generator, Mapping
 
@@ -8,6 +9,7 @@ from pydantic import BaseModel, ValidationError
 
 from falcon_swoop.context import OpContext, OpAsgiContext
 from falcon_swoop.error import FalconSwoopConfigError, FalconSwoopWarning
+from falcon_swoop.http_io import HttpBinary, HttpText
 from falcon_swoop.operation import ATTR_OPERATION, HttpMethod, OpInfo, OpInfoWithSpec, OpFuncParamInput
 from falcon_swoop.output import OpOutput
 from falcon_swoop.route import ApiRoute
@@ -156,7 +158,17 @@ class ApiBaseResource:
         if payload is None:
             pass
         elif isinstance(payload, BaseModel):
-            resp.media = payload.model_dump(by_alias=True)
+            resp.media = payload.model_dump(mode="json", by_alias=True)
+        elif isinstance(payload, HttpBinary):
+            payload.bio.seek(io.SEEK_SET, 0)
+            resp.stream = payload.bio
+            resp.content_length = payload.content_type
+            resp.content_type = payload.content_type or "application/octet-stream"
+        elif isinstance(payload, HttpText):
+            payload.tio.seek(io.SEEK_SET, 0)
+            resp.text = payload.tio.read()
+            resp.content_length = payload.content_type
+            resp.content_type = payload.content_type or "text/plain"
         else:
             raise ValueError(f"Got payload of unsupported type: {type(payload)}")
 

@@ -1,15 +1,12 @@
-import types
 from datetime import datetime
 from typing import Generic, Iterable, TypeVar
 
 from pydantic import BaseModel
 
 from falcon_swoop.error import FalconSwoopError
-from falcon_swoop.http_io import HttpBinary, HttpText
+from falcon_swoop.http_io import BODY_TYPES
 
 
-# TODO: add Multipart?
-OUTPUT_TYPES = (BaseModel, types.NoneType, HttpBinary, HttpText)
 T = TypeVar("T", bound=BaseModel | None)
 
 
@@ -39,6 +36,6 @@ class OpOutput(Generic[T]):
 
     @payload.setter
     def payload(self, p: T) -> None:
-        if not isinstance(p, OUTPUT_TYPES):
-            raise FalconSwoopError(f"Operation output payload needs be one of {OUTPUT_TYPES}, but got {type(p)}")
+        if not isinstance(p, BODY_TYPES):
+            raise FalconSwoopError(f"Operation output payload needs be one of {BODY_TYPES}, but got {type(p)}")
         self.__payload = p

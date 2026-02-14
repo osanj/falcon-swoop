@@ -21,6 +21,11 @@ def resource3(resource_loader: SimulatedResourceLoader) -> SimulatedResource:
     return resource_loader.get("BasicResource3")
 
 
+@pytest.fixture(scope="module")
+def resource4(resource_loader: SimulatedResourceLoader) -> SimulatedResource:
+    return resource_loader.get("BasicResource4")
+
+
 def test_missing_input_raises_400(resource1: SimulatedResource) -> None:
     resp = resource1.simulate_post(json_model=BasicInput(param1="test"))
     assert resp.status_code == 200
@@ -36,6 +41,7 @@ def test_missing_input_raises_400(resource1: SimulatedResource) -> None:
         ["BasicResource1", {"PUT", "PATCH", "DELETE"}, {"GET", "POST", "OPTIONS"}],
         ["BasicResource2", {"POST"}, {"GET", "PUT", "PATCH", "DELETE", "OPTIONS"}],
         ["BasicResource3", {"POST", "PATCH", "DELETE"}, {"GET", "PUT", "OPTIONS"}],
+        ["BasicResource4", {"DELETE"}, {"GET", "POST", "PATCH", "PUT", "OPTIONS"}],
     ],
 )
 def test_unused_operation_raises_405(
@@ -165,6 +171,7 @@ def test_status_code_via_output(resource3: SimulatedResource) -> None:
         ["BasicResource1", {"getSomething", "postSomething"}],
         ["BasicResource2", {"getCityData", "putCityData", "updateCityData"}],
         ["BasicResource3", {"getWeather", "addWeatherSample"}],
+        ["BasicResource4", {"getBlob", "getBlobStats", "addBlob", "addBlobStats"}],
     ],
 )
 def test_openapi_generation(resource_name: str, exp_op_ids: set[str], resource_loader: SimulatedResourceLoader) -> None:

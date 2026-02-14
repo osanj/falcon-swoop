@@ -2,7 +2,18 @@ from typing import Any, Literal
 
 import falcon
 
-from falcon_swoop import ApiBaseResource, OpContext, OpOutput, operation, query_param, header_param, operation_doc
+from falcon_swoop import (
+    ApiBaseResource,
+    OpContext,
+    OpOutput,
+    operation,
+    query_param,
+    header_param,
+    operation_doc,
+    HttpBinary,
+    HttpText,
+    path_param,
+)
 from falcon_swoop_test.resource.common import WeatherLevel, BasicInput, BasicOutput, country_param, city_id_param
 
 
@@ -86,3 +97,55 @@ class BasicResource3(ApiBaseResource):
             payload=payload,
             status_code=200 if transient else 201,
         )
+
+
+class BasicResource4(ApiBaseResource):
+
+    def __init__(self) -> None:
+        super().__init__("/blob/{blobId}")
+
+    @operation(method="GET")
+    def get_blob(
+        self,
+        blob_id: str = path_param(alias="blobId"),
+    ) -> HttpBinary:
+        return HttpBinary(binary=b"blob" + blob_id.encode())
+
+    @operation(method="POST")
+    def add_blob(
+        self,
+        blob: HttpBinary,
+        blob_id: str = path_param(alias="blobId"),
+    ) -> BasicOutput:
+        data = blob.bio.read()
+        output = BasicOutput(
+            data={
+                "data": data.decode(),
+                "content_length": blob.content_length,
+                "content_type": blob.content_type,
+            }
+        )
+        return output
+
+    @operation(method="PATCH")
+    def get_blob_stats(
+        self,
+        blob_id: str = path_param(alias="blobId"),
+    ) -> HttpText:
+        return HttpText(text="stat;count\nsize;12345\naccesses;123", content_type="text/csv")
+
+    @operation(method="PUT")
+    def add_blob_stats(
+        self,
+        stats: HttpText,
+        blob_id: str = path_param(alias="blobId"),
+    ) -> BasicOutput:
+        text = stats.tio.read()
+        output = BasicOutput(
+            data={
+                "data": text,
+                "content_length": stats.content_length,
+                "content_type": stats.content_type,
+            }
+        )
+        return output
