@@ -18,6 +18,7 @@ to an existing app or just add one single typed resource to your project.
   - [x] make generic class holding output compatible with None
   - [x] check "more_response_docs" compatibility, what if default status is defined there again?
   - [ ] sketch out Multipart form data?
+  - [ ] check accept header enforcing?
 - [x] make certain query and header parameters optional (e.g. `my_query_param: int | None = ...`)
 - [x] allow literal and str-Enum for parameters
 - [x] warning that header params are case-insensitive (if name/alias provided that is not entirely upper/lowercase)

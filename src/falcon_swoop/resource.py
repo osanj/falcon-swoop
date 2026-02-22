@@ -198,10 +198,10 @@ class ApiBaseResource:
                 if media is None:
                     data = None
                 else:
-                    data = spec.func_input.model_type(**media)
+                    data = spec.func_input.dtype(**media)
             else:
                 # calling req.get_media() again to maintain default falcon behavior for empty body when JSON is expected
-                data = spec.func_input.model_type(**req.get_media())
+                data = spec.func_input.dtype(**req.get_media())
 
             if spec.context_input_name is not None:
                 kwargs[spec.context_input_name] = OpContext(req, resp)
@@ -226,11 +226,11 @@ class ApiBaseResource:
                 if media is None:
                     data = None
                 else:
-                    data = spec.func_input.model_type(**media)
+                    data = spec.func_input.dtype(**media)
             else:
                 # calling req.get_media() again to maintain default falcon behavior for empty body when JSON is expected
                 media = await req.get_media()
-                data = spec.func_input.model_type(**media)
+                data = spec.func_input.dtype(**media)
 
             if spec.context_input_name is not None:
                 kwargs[spec.context_input_name] = OpAsgiContext(req, resp)

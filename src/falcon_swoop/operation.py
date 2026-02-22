@@ -3,6 +3,7 @@ import warnings
 from dataclasses import dataclass, field as dataclass_field
 from enum import Enum
 from typing import Any, Callable, Literal, TypedDict
+
 from typing_extensions import NotRequired, Self, Unpack
 
 from pydantic import create_model, BaseModel
@@ -10,42 +11,17 @@ from pydantic.fields import FieldInfo
 
 from falcon_swoop.context import OpContext, OpAsgiContext
 from falcon_swoop.error import FalconSwoopConfigError, FalconSwoopConfigWarning
-from falcon_swoop.http_io import BODY_TYPES
+from falcon_swoop.http_io import BODY_TYPES, HttpBinary, HttpText
 from falcon_swoop.output import OpOutput
 from falcon_swoop.param import OpParam, OpParamKind, OpParamType
 import falcon_swoop.type_util as type_util
 
 HttpMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]  # , "OPTIONS"]
-MimeType = Literal["application/json"]
 ATTR_OPERATION = "operation"
 
 
-@dataclass
-class OpFuncInput:
-    name: str
-    model_type: type[BaseModel]
-    optional: bool = False
-
-
-@dataclass
-class OpFuncParam:
-    name: str
-    annotation: OpParamType  # TODO: remove?
-    annotation_orig: Any
-    info: FieldInfo
-    optional: bool = False  # TODO: replace with property that interprets annotation_orig?
-
-    @property
-    def input_name(self) -> str:
-        return self.info.alias or self.name
-
-    @property
-    def uses_alias(self) -> bool:
-        return self.info.alias is not None
-
-
 OpExample = BaseModel | dict[str, Any] | str
-OpType = type[BaseModel] | type[str] | None
+OpType = type[BaseModel] | type[HttpBinary] | type[HttpText] | type[str] | None
 
 
 @dataclass
@@ -83,6 +59,94 @@ OpResponseDocByHttpCode = dict[int, OpResponseDoc]
 
 
 @dataclass
+class OpFuncInput:
+    name: str
+    dtype: type[BaseModel] | type[HttpBinary] | type[HttpText]
+    accept: list[str]
+    optional: bool = False
+
+    def __post_init__(self) -> None:
+        for a in self.accept:
+            if not self.ensure_content_type_format_is_ok(a):
+                raise FalconSwoopConfigError(f"Configured mime type {a} for accept has invalid format")
+        self.accept = [a.lower() for a in self.accept]
+
+    @classmethod
+    def ensure_content_type_format_is_ok(cls, mime: str) -> bool:
+        return mime.count("/") == 1 and len(mime) >= 3
+
+    @classmethod
+    def get_default_accept(cls, object_type: type[BaseModel] | type[HttpBinary] | type[HttpText]) -> str:
+        if issubclass(object_type, HttpBinary):
+            return "application/octet-stream"
+        elif issubclass(object_type, HttpText):
+            return "text/plain"
+        return "application/json"
+
+    @classmethod
+    def parse_accept_config(
+        cls,
+        user_defined_accept: list[str] | None,
+        object_type: type[BaseModel] | type[HttpBinary] | type[HttpText],
+    ) -> list[str]:
+        if user_defined_accept is not None and len(user_defined_accept) > 0:
+            return user_defined_accept
+        return [cls.get_default_accept(object_type)]
+
+    @property
+    def accepts_any(self) -> bool:
+        return "*/*" in self.accept
+
+    def can_accept(self, content_type: str | None, accepted_cts: list[str]) -> bool:
+        if self.accepts_any:
+            return True
+        if content_type is None or not self.ensure_content_type_format_is_ok(content_type):
+            return False
+        content_type_ = content_type.lower().strip()
+        if content_type_ in accepted_cts:
+            return True
+
+        content_type_main = content_type_.split("/")[0]
+        accepted_main_wildcards = [a.split("/")[0] for a in accepted_cts if a.endswith("/*")]
+        return content_type_main in accepted_main_wildcards
+
+    def to_doc(
+        self,
+        example: OpExample | None = None,
+        examples: dict[str, OpExample] | None = None,
+        examples_by_mime: dict[str, dict[str, OpExample]] | None = None,
+    ) -> OpRequestDoc:
+        by_mime = {}
+        for mime in self.accept:
+            mime_examples = {}
+            if example is not None:
+                mime_examples["default"] = example
+            if examples is not None:
+                mime_examples.update(examples)
+            if examples_by_mime is not None:
+                mime_examples.update(examples_by_mime.get(mime, {}))
+            by_mime[mime] = OpTypeDoc(model_type=self.dtype, examples=mime_examples)
+        return OpRequestDoc(by_mime=by_mime, required=not self.optional)
+
+
+@dataclass
+class OpFuncParam:
+    name: str
+    annotation: OpParamType  # TODO: remove?
+    annotation_orig: Any
+    info: FieldInfo
+    optional: bool = False  # TODO: replace with property that interprets annotation_orig?
+
+    @property
+    def input_name(self) -> str:
+        return self.info.alias or self.name
+
+    @property
+    def uses_alias(self) -> bool:
+        return self.info.alias is not None
+
+
+@dataclass
 class OpFuncParamInput:
     model_type: type[BaseModel]
     param_by_name: dict[str, OpFuncParam]
@@ -91,9 +155,43 @@ class OpFuncParamInput:
 
 
 @dataclass
+class OpFuncOutputType:
+    dtype: type[BaseModel] | type[HttpBinary] | type[HttpText]
+    content_type: str
+
+    @classmethod
+    def parse_content_type_config(
+        cls,
+        user_defined_ct: str | None,
+        object_type: type[BaseModel] | type[HttpBinary] | type[HttpText],
+    ) -> str:
+        if user_defined_ct is None:
+            return OpFuncInput.get_default_accept(object_type)
+        return user_defined_ct
+
+
+@dataclass
 class OpFuncOutput:
-    model_type: type[BaseModel] | None
+    output: OpFuncOutputType | None
     hinted_wrapper: bool
+
+    def to_doc(
+        self,
+        description: str,
+        example: OpExample | None = None,
+        examples: dict[str, OpExample] | None = None,
+        # examples_by_mime: dict[str, dict[str, OpExample]] | None = None  # TODO: add later?
+    ) -> OpResponseDoc:
+        by_mime = {}
+        if self.output is not None:
+            mime_examples = {}
+            if example is not None:
+                mime_examples["default"] = example
+            if examples is not None:
+                mime_examples.update(examples)
+            by_mime[self.output.content_type] = OpTypeDoc(model_type=self.output.dtype, examples=mime_examples)
+
+        return OpResponseDoc(description=description, by_mime=by_mime)
 
 
 @dataclass
@@ -116,9 +214,6 @@ class OpInfo:
     deprecated: bool
     request_doc: OpRequestDoc | None
     response_docs: OpResponseDocByHttpCode
-    # accept: list[MimeType]
-    # http_status_code: int
-    # http_description: str
 
     func: Callable[..., Any]
 
@@ -135,6 +230,7 @@ class OpInfo:
 class OpInfoWithSpec(OpInfo):
     func_spec: OpFuncSpec
     default_status_code: int
+    require_valid_content_type: bool
 
 
 def find_param_type(
@@ -281,11 +377,16 @@ class OperationKwArgs(TypedDict):
     summary: NotRequired[str]
     description: NotRequired[str]
     tags: NotRequired[list[str]]
-    accept: NotRequired[list[MimeType]]
+    accept: NotRequired[str | list[str]]
+    require_valid_content_type: NotRequired[bool]
     deprecated: NotRequired[bool]
     default_status: NotRequired[int | tuple[int, str]]
-    default_request_example: NotRequired[OpExample]
-    default_response_example: NotRequired[OpExample]
+    request_example: NotRequired[OpExample]
+    request_examples: NotRequired[dict[str, OpExample]]
+    request_examples_by_mime: NotRequired[dict[str, dict[str, OpExample]]]
+    response_content_type: NotRequired[str]  # TODO: allow also list like for accept?
+    response_example: NotRequired[OpExample]
+    response_examples: NotRequired[dict[str, OpExample]]
     more_response_docs: NotRequired[OpResponseDocByHttpCode]
 
 
@@ -299,6 +400,8 @@ def get_operation_id_or_default(operation_id: str | None, func: Callable[..., An
 def inspect_function(
     func: Callable[..., Any],
     op_id: str,
+    accept: str | list[str] | None,
+    response_ct: str | None,
 ) -> OpFuncSpec:
     signature = inspect.signature(func)
     is_async = inspect.iscoroutinefunction(func)
@@ -335,7 +438,14 @@ def inspect_function(
             raise FalconSwoopConfigError(
                 f"Operation input parameter {param.name} needs to be one of {BODY_TYPES}, bot got {param_type}"
             )
-        op_input = OpFuncInput(param.name, param_type, optional)
+        if isinstance(accept, str):
+            accept = [accept]
+        op_input = OpFuncInput(
+            name=param.name,
+            dtype=param_type,
+            optional=optional,
+            accept=OpFuncInput.parse_accept_config(accept, param_type),
+        )
     elif len(input_params) > 1:
         raise FalconSwoopConfigError(f"More than 1 parameter found that could be http body: {','.join(input_params)}")
 
@@ -354,12 +464,20 @@ def inspect_function(
             f"the type hint should be {OpOutput.__name__}[<return_type>]"
         )
 
+    output_type = None
     if output_candidate is not None:
         if type_util.is_union_type(output_candidate):
             raise FalconSwoopConfigError("Return type cannot be a union or optional")
         if not type_util.safe_issubclass(output_candidate, BODY_TYPES):
             raise FalconSwoopConfigError(f"Return type needs to be one of {BODY_TYPES}, bot got {output_candidate}")
-    op_output = OpFuncOutput(model_type=output_candidate, hinted_wrapper=hinted_wrapper)
+        output_type = OpFuncOutputType(
+            dtype=output_candidate,
+            content_type=OpFuncOutputType.parse_content_type_config(response_ct, output_candidate),
+        )
+    op_output = OpFuncOutput(
+        output=output_type,
+        hinted_wrapper=hinted_wrapper,
+    )
 
     return OpFuncSpec(
         func_input=op_input,
@@ -378,22 +496,20 @@ def inspect_operation(
 ) -> OpInfoWithSpec:
     op_id = get_operation_id_or_default(kwargs.get("operation_id"), func)
 
-    func_spec = inspect_function(func, op_id)
+    func_spec = inspect_function(
+        func,
+        op_id=op_id,
+        accept=kwargs.get("accept"),
+        response_ct=kwargs.get("response_content_type"),
+    )
     op_input = func_spec.func_input
-    op_output_type = func_spec.func_output.model_type
 
-    # default_accept: list[MimeType] = ["application/json"]
-    # accept=kwargs.get("accept", default_accept),
     request_doc: OpRequestDoc | None = None
     if op_input is not None:
-        request_doc = OpRequestDoc(
-            required=not op_input.optional,
-            by_mime={
-                "application/json": OpTypeDoc.with_default_example(
-                    model_type=op_input.model_type,
-                    example=kwargs.get("default_request_example"),
-                )
-            },
+        request_doc = op_input.to_doc(
+            example=kwargs.get("request_example"),
+            examples=kwargs.get("request_examples"),
+            examples_by_mime=kwargs.get("request_examples_by_mime"),
         )
 
     resp_status: int = 200
@@ -406,13 +522,8 @@ def inspect_operation(
             resp_desc = desc
         case _:
             raise ValueError("Could not match default status input")
-    response_type_by_mime = {}
-    if op_output_type is not None:
-        response_type_by_mime["application/json"] = OpTypeDoc.with_default_example(
-            model_type=op_output_type,
-            example=kwargs.get("default_response_example"),
-        )
-    response_docs = {resp_status: OpResponseDoc(description=resp_desc, by_mime=response_type_by_mime)}
+    response_doc = func_spec.func_output.to_doc(description=resp_desc)
+    response_docs = {resp_status: response_doc}
     more_response_docs = kwargs.get("more_response_docs", {})
     if resp_status in more_response_docs:
         raise FalconSwoopConfigError(
@@ -433,6 +544,7 @@ def inspect_operation(
         # ---
         func_spec=func_spec,
         default_status_code=resp_status,
+        require_valid_content_type=kwargs.get("require_valid_content_type", True),
     )
 
 
@@ -457,7 +569,6 @@ class OperationDocKwArgs(TypedDict):
     summary: NotRequired[str]
     description: NotRequired[str]
     tags: NotRequired[list[str]]
-    accept: NotRequired[list[MimeType]]
     deprecated: NotRequired[bool]
     request_doc: NotRequired[OpRequestDoc]
     response_docs: NotRequired[OpResponseDocByHttpCode]
