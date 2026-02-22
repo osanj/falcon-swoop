@@ -139,6 +139,12 @@ class ApiBaseResource:
         if not isinstance(op, OpInfoWithSpec):
             raise ValueError(f"Expected object of subtype {OpInfoWithSpec.__name__}")
 
+        ct = req.content_type
+        fi = op.func_spec.func_input
+        if ct is not None and fi is not None and op.require_valid_content_type and not fi.can_accept(ct):
+            accepted_content_types = ", ".join(fi.accept)
+            raise falcon.HTTPNotAcceptable(description=f"Accepted content types are: {accepted_content_types}")
+
         kwargs = {}
         kwargs.update(self.__collect_typed_kwargs(req.params, op.func_spec.query_input))
         kwargs.update(self.__collect_typed_kwargs(path_params, op.func_spec.path_input))

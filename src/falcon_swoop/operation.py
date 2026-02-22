@@ -97,17 +97,17 @@ class OpFuncInput:
     def accepts_any(self) -> bool:
         return "*/*" in self.accept
 
-    def can_accept(self, content_type: str | None, accepted_cts: list[str]) -> bool:
+    def can_accept(self, content_type: str | None) -> bool:
         if self.accepts_any:
             return True
         if content_type is None or not self.ensure_content_type_format_is_ok(content_type):
             return False
         content_type_ = content_type.lower().strip()
-        if content_type_ in accepted_cts:
+        if content_type_ in self.accept:
             return True
 
         content_type_main = content_type_.split("/")[0]
-        accepted_main_wildcards = [a.split("/")[0] for a in accepted_cts if a.endswith("/*")]
+        accepted_main_wildcards = [a.split("/")[0] for a in self.accept if a.endswith("/*")]
         return content_type_main in accepted_main_wildcards
 
     def to_doc(
