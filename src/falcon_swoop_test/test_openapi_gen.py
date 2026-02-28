@@ -9,6 +9,7 @@ from falcon_swoop import (
     operation,
     operation_doc,
     query_param,
+    OpBinary,
     OpRequestDoc,
     OpResponseDoc,
     OpTypeDoc,
@@ -142,24 +143,47 @@ class Post(ApiBaseResource):
     def __init__(self) -> None:
         super().__init__(self.PATH)
 
-    @operation(method="GET")
+    @operation(method="GET", tags=["posts"])
     def get_post(
         self,
         post_id: int = path_param(alias="postId"),
     ) -> PostView:
         return PostView(id=post_id, content="lorem ipsum")
 
-    @operation(method="DELETE")
+    @operation(method="DELETE", tags=["posts"])
     def delete_post(
         self, post_id: int = path_param(alias="postId"), admin_key: str = header_param(alias="X-ADMIN-KEY")
     ) -> None:
         pass
 
 
+class PostMedia(ApiBaseResource):
+    PATH = "/posts/{postId}/media"
+
+    def __init__(self) -> None:
+        super().__init__(self.PATH)
+
+    @operation(
+        method="PUT",
+        tags=["posts"],
+        accept=["image/*", "application/pdf"],
+        default_status=201,
+        response_content_type="text/plain",
+        response_example="id=123",
+        more_response_docs={400: OpResponseDoc("bad_bytes")},
+    )
+    def add_media(
+        self,
+        media: OpBinary,
+        post_id: int = path_param(alias="postId"),
+    ) -> OpBinary:
+        return OpBinary("id=999")
+
+
 @pytest.fixture(scope="module")
 def gen() -> OpenApiGenerator:
     return OpenApiGenerator(
-        resources=[Item(), Items(), Post()],
+        resources=[Item(), Items(), Post(), PostMedia()],
         title="Item API",
         version="0.0.1",
     )
@@ -325,3 +349,22 @@ def test_param_reuse(gen: OpenApiGenerator) -> None:
     gen.settings.reuse_parameters_if_possible = False
     spec2 = gen.generate().spec
     assert len(spec1.components.parameters) < len(spec2.components.parameters)
+
+
+def test_doc_gen_for_binary_op_data(spec: OpenApiDocument) -> None:
+    upload_op = spec.paths[PostMedia.PATH].put
+    assert upload_op is not None
+
+    binary_schema = {"type": "string", "format": "binary"}
+
+    assert isinstance(upload_op.request_body, OpenApiRequestBody)
+    assert upload_op.request_body.required
+    assert upload_op.request_body.content.keys() == {"image/*", "application/pdf"}
+    assert upload_op.request_body.content["image/*"].schema_ == binary_schema
+    assert upload_op.request_body.content["application/pdf"].schema_ == binary_schema
+
+    assert upload_op.responses.keys() == {"201", "400"}
+    assert isinstance(upload_op.responses["201"], OpenApiResponse)
+    assert upload_op.responses["201"].description == "ok"
+    assert upload_op.responses["201"].content["text/plain"].schema_ == binary_schema
+    assert upload_op.responses["400"].description == "bad_bytes"
