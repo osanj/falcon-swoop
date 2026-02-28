@@ -110,7 +110,7 @@ class BasicResource4(ApiBaseResource):
     ) -> OpAsgiBinary:
         return OpAsgiBinary(b"blob" + blob_id.encode())
 
-    @operation(method="POST", accept="application/pdf")
+    @operation(method="POST", accept="image/*")
     async def add_blob(
         self,
         blob: OpAsgiBinary,

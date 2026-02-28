@@ -273,7 +273,7 @@ def test_config_error_for_default_status_code() -> None:
                 pass
 
 
-def test_async_binary_input_on_sync_operation() -> None:
+def test_config_error_for_async_binary_input_on_sync_operation() -> None:
     with pytest.raises(FalconSwoopConfigError, match="Operation is sync, but input type is configured as"):
 
         class Resource(ApiBaseResource):
@@ -282,7 +282,7 @@ def test_async_binary_input_on_sync_operation() -> None:
                 pass
 
 
-def test_async_binary_output_on_sync_operation() -> None:
+def test_config_error_for_async_binary_output_on_sync_operation() -> None:
     with pytest.raises(FalconSwoopConfigError, match="Operation is sync, but return type is configured as"):
 
         class Resource(ApiBaseResource):
@@ -291,7 +291,7 @@ def test_async_binary_output_on_sync_operation() -> None:
                 return OpAsgiBinary(b"test")
 
 
-def test_binary_input_on_async_operation() -> None:
+def test_config_error_for_binary_input_on_async_operation() -> None:
     with pytest.raises(FalconSwoopConfigError, match="Operation is async, but input type is configured as"):
 
         class Resource(ApiBaseResource):
@@ -300,7 +300,7 @@ def test_binary_input_on_async_operation() -> None:
                 pass
 
 
-def test_binary_output_on_async_operation() -> None:
+def test_config_error_for_binary_output_on_async_operation() -> None:
     with pytest.raises(FalconSwoopConfigError, match="Operation is async, but return type is configured as"):
 
         class Resource(ApiBaseResource):

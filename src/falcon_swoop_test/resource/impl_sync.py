@@ -110,7 +110,7 @@ class BasicResource4(ApiBaseResource):
     ) -> OpBinary:
         return OpBinary(b"blob" + blob_id.encode())
 
-    @operation(method="POST", accept="application/pdf")
+    @operation(method="POST", accept="image/*")
     def add_blob(
         self,
         blob: OpBinary,
