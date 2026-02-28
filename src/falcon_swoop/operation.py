@@ -3,46 +3,25 @@ import warnings
 from dataclasses import dataclass, field as dataclass_field
 from enum import Enum
 from typing import Any, Callable, Literal, TypedDict
+
 from typing_extensions import NotRequired, Self, Unpack
 
 from pydantic import create_model, BaseModel
 from pydantic.fields import FieldInfo
 
+from falcon_swoop.context import OpContext, OpAsgiContext
 from falcon_swoop.error import FalconSwoopConfigError, FalconSwoopConfigWarning
+from falcon_swoop.binary import BODY_TYPES, OpAsgiBinary, OpBinary
+from falcon_swoop.output import OpOutput
 from falcon_swoop.param import OpParam, OpParamKind, OpParamType
-from falcon_swoop.type_util import is_union_type, safe_issubclass, unpack_optional_type, unpack_literal_type
+import falcon_swoop.type_util as type_util
 
 HttpMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]  # , "OPTIONS"]
-MimeType = Literal["application/json"]
 ATTR_OPERATION = "operation"
 
 
-@dataclass
-class OpApiModelInput:
-    name: str
-    model_type: type[BaseModel]
-    optional: bool = False
-
-
-@dataclass
-class OpApiParamInput:
-    name: str
-    annotation: OpParamType  # TODO: remove?
-    annotation_orig: Any
-    info: FieldInfo
-    optional: bool = False  # TODO: replace with property that interprets annotation_orig?
-
-    @property
-    def input_name(self) -> str:
-        return self.info.alias or self.name
-
-    @property
-    def uses_alias(self) -> bool:
-        return self.info.alias is not None
-
-
 OpExample = BaseModel | dict[str, Any] | str
-OpType = type[BaseModel] | type[str] | None
+OpType = type[BaseModel] | type[OpBinary] | type[OpAsgiBinary] | type[str] | None
 
 
 @dataclass
@@ -80,22 +59,170 @@ OpResponseDocByHttpCode = dict[int, OpResponseDoc]
 
 
 @dataclass
+class OpFuncInput:
+    name: str
+    dtype: type[BaseModel] | type[OpBinary] | type[OpAsgiBinary]
+    accept: list[str]
+    optional: bool = False
+
+    def __post_init__(self) -> None:
+        for a in self.accept:
+            if not self.ensure_content_type_format_is_ok(a):
+                raise FalconSwoopConfigError(f"Configured mime type {a} for accept has invalid format")
+        self.accept = [a.lower() for a in self.accept]
+
+    def check_binary_dtype(self, operation_is_sync: bool) -> None:
+        if issubclass(self.dtype, OpBinary) and not operation_is_sync:
+            raise FalconSwoopConfigError(
+                f"Operation is async, but input type is configured as {OpBinary.__name__}, use {OpAsgiBinary.__name__} instead"
+            )
+        if issubclass(self.dtype, OpAsgiBinary) and operation_is_sync:
+            raise FalconSwoopConfigError(
+                f"Operation is sync, but input type is configured as {OpAsgiBinary.__name__}, use {OpBinary.__name__} instead"
+            )
+
+    @classmethod
+    def ensure_content_type_format_is_ok(cls, mime: str) -> bool:
+        return mime.count("/") == 1 and len(mime) >= 3
+
+    @classmethod
+    def get_default_accept(cls, object_type: type[BaseModel] | type[OpBinary] | type[OpAsgiBinary]) -> str:
+        if issubclass(object_type, (OpBinary, OpAsgiBinary)):
+            return "application/octet-stream"
+        return "application/json"
+
+    @classmethod
+    def parse_accept_config(
+        cls,
+        user_defined_accept: list[str] | None,
+        object_type: type[BaseModel] | type[OpBinary] | type[OpAsgiBinary],
+    ) -> list[str]:
+        if user_defined_accept is not None and len(user_defined_accept) > 0:
+            return user_defined_accept
+        return [cls.get_default_accept(object_type)]
+
+    @property
+    def accepts_any(self) -> bool:
+        return "*/*" in self.accept
+
+    def can_accept(self, content_type: str | None) -> bool:
+        if self.accepts_any:
+            return True
+        if content_type is None:
+            return False
+        content_type = content_type.split(sep=";", maxsplit=1)[0]
+        if not self.ensure_content_type_format_is_ok(content_type):
+            return False
+        content_type_ = content_type.lower().strip()
+        if content_type_ in self.accept:
+            return True
+
+        content_type_main = content_type_.split("/")[0]
+        accepted_main_wildcards = [a.split("/")[0] for a in self.accept if a.endswith("/*")]
+        return content_type_main in accepted_main_wildcards
+
+    def to_doc(
+        self,
+        example: OpExample | None = None,
+        examples: dict[str, OpExample] | None = None,
+        examples_by_mime: dict[str, dict[str, OpExample]] | None = None,
+    ) -> OpRequestDoc:
+        by_mime = {}
+        for mime in self.accept:
+            mime_examples = {}
+            if example is not None:
+                mime_examples["default"] = example
+            if examples is not None:
+                mime_examples.update(examples)
+            if examples_by_mime is not None:
+                mime_examples.update(examples_by_mime.get(mime, {}))
+            by_mime[mime] = OpTypeDoc(model_type=self.dtype, examples=mime_examples)
+        return OpRequestDoc(by_mime=by_mime, required=not self.optional)
+
+
+@dataclass
+class OpFuncParam:
+    name: str
+    annotation: OpParamType  # TODO: remove?
+    annotation_orig: Any
+    info: FieldInfo
+    optional: bool = False  # TODO: replace with property that interprets annotation_orig?
+
+    @property
+    def input_name(self) -> str:
+        return self.info.alias or self.name
+
+    @property
+    def uses_alias(self) -> bool:
+        return self.info.alias is not None
+
+
+@dataclass
 class OpFuncParamInput:
     model_type: type[BaseModel]
-    param_by_name: dict[str, OpApiParamInput]
-    param_by_input_name: dict[str, OpApiParamInput]
+    param_by_name: dict[str, OpFuncParam]
+    param_by_input_name: dict[str, OpFuncParam]
     case_sensitive: bool
 
 
 @dataclass
+class OpFuncOutputType:
+    dtype: type[BaseModel] | type[OpBinary] | type[OpAsgiBinary]
+    content_type: str
+
+    @classmethod
+    def parse_content_type_config(
+        cls,
+        user_defined_ct: str | None,
+        object_type: type[BaseModel] | type[OpBinary] | type[OpAsgiBinary],
+    ) -> str:
+        if user_defined_ct is None:
+            return OpFuncInput.get_default_accept(object_type)
+        return user_defined_ct
+
+    def check_binary_dtype(self, operation_is_sync: bool) -> None:
+        if issubclass(self.dtype, OpBinary) and not operation_is_sync:
+            raise FalconSwoopConfigError(
+                f"Operation is async, but return type is configured as {OpBinary.__name__}, use {OpAsgiBinary.__name__} instead"
+            )
+        if issubclass(self.dtype, OpAsgiBinary) and operation_is_sync:
+            raise FalconSwoopConfigError(
+                f"Operation is sync, but return type is configured as {OpAsgiBinary.__name__}, use {OpBinary.__name__} instead"
+            )
+
+
+@dataclass
+class OpFuncOutput:
+    output: OpFuncOutputType | None
+    hinted_wrapper: bool
+
+    def to_doc(
+        self,
+        description: str,
+        example: OpExample | None = None,
+        examples: dict[str, OpExample] | None = None,
+        # examples_by_mime: dict[str, dict[str, OpExample]] | None = None  # TODO: add later?
+    ) -> OpResponseDoc:
+        by_mime = {}
+        if self.output is not None:
+            mime_examples = {}
+            if example is not None:
+                mime_examples["default"] = example
+            if examples is not None:
+                mime_examples.update(examples)
+            by_mime[self.output.content_type] = OpTypeDoc(model_type=self.output.dtype, examples=mime_examples)
+
+        return OpResponseDoc(description=description, by_mime=by_mime)
+
+
+@dataclass
 class OpFuncSpec:
-    func_input: OpApiModelInput | None
+    func_input: OpFuncInput | None
+    func_output: OpFuncOutput
     query_input: OpFuncParamInput | None
     path_input: OpFuncParamInput | None
     header_input: OpFuncParamInput | None
-    # allow raw input?
-    # accept mime type?
-    func_output_model: type[BaseModel] | None
+    context_input_name: str | None
 
 
 @dataclass
@@ -108,9 +235,6 @@ class OpInfo:
     deprecated: bool
     request_doc: OpRequestDoc | None
     response_docs: OpResponseDocByHttpCode
-    # accept: list[MimeType]
-    # http_status_code: int
-    # http_description: str
 
     func: Callable[..., Any]
 
@@ -119,13 +243,16 @@ class OpInfo:
         return self.func.__name__
 
     @property
-    def is_coroutine(self) -> bool:
-        return inspect.iscoroutinefunction(self.func)
+    def is_sync(self) -> bool:
+        return not inspect.iscoroutinefunction(self.func)
 
 
 @dataclass
 class OpInfoWithSpec(OpInfo):
     func_spec: OpFuncSpec
+    default_status_code: int
+    default_content_type: str | None
+    require_valid_content_type: bool
 
 
 def find_param_type(
@@ -139,8 +266,8 @@ def find_param_type(
         raise FalconSwoopConfigError(
             f"{param_error_hint} requires type annotation, possible types are {param.allow_types}"
         )
-    if is_union_type(annotation):
-        unpacked_opt = unpack_optional_type(annotation)
+    if type_util.is_union_type(annotation):
+        unpacked_opt = type_util.unpack_optional_type(annotation)
         if unpacked_opt.is_optional_for_single_type:
             if param.allow_optional:
                 annotation = unpacked_opt.types_without_none[0]
@@ -150,14 +277,14 @@ def find_param_type(
         else:
             raise FalconSwoopConfigError(f"{param_error_hint} cannot be a union")
 
-    unpacked_lit = unpack_literal_type(annotation)
+    unpacked_lit = type_util.unpack_literal_type(annotation)
     if unpacked_lit.is_literal:
         allowed_literal_types = (str, int, bool)
         if not unpacked_lit.has_only_values_of_type(allowed_literal_types):
             raise FalconSwoopConfigError(
                 f"{param_error_hint} must only have literal values of type {allowed_literal_types}"
             )
-    elif safe_issubclass(annotation, Enum):
+    elif type_util.safe_issubclass(annotation, Enum):
         if not issubclass(annotation, str):
             raise FalconSwoopConfigError(
                 f"{param_error_hint} must be a string enum to be usable, either subclass from str and Enum or use StrEnum"
@@ -201,7 +328,7 @@ def find_params(
                 f"{error_start} is type hinted as optional, but will never be None because of default value",
                 FalconSwoopConfigWarning,
             )
-        param_input = OpApiParamInput(
+        param_input = OpFuncParam(
             name=param_name,
             annotation=annotation,
             annotation_orig=input_argument.annotation,
@@ -236,16 +363,52 @@ def find_params(
     return func_input, used_param_names
 
 
+def find_context_input(
+    signature: inspect.Signature,
+    param_names: set[str],
+    is_sync: bool,
+) -> str | None:
+    expected_type = OpContext if is_sync else OpAsgiContext
+    incorrect_type = OpAsgiContext if is_sync else OpContext
+
+    context_param_name: str | None = None
+    for param_name in param_names:
+        input_argument = signature.parameters[param_name]
+        input_type = input_argument.annotation
+
+        if input_type == incorrect_type:
+            operation_kind = "synchronous" if is_sync else "asynchronous"
+            raise FalconSwoopConfigError(
+                f"Argument {param_name} has type {input_type}, but expected {expected_type} "
+                f"since the operation is {operation_kind}"
+            )
+
+        if input_type == expected_type:
+            if context_param_name is not None:
+                raise FalconSwoopConfigError(
+                    f"Duplicated context parameter, {context_param_name} already receives the operation context, "
+                    f"{param_name} should be removed"
+                )
+            context_param_name = param_name
+
+    return context_param_name
+
+
 class OperationKwArgs(TypedDict):
     operation_id: NotRequired[str]
     summary: NotRequired[str]
     description: NotRequired[str]
     tags: NotRequired[list[str]]
-    accept: NotRequired[list[MimeType]]
+    accept: NotRequired[str | list[str]]
+    require_valid_content_type: NotRequired[bool]
     deprecated: NotRequired[bool]
     default_status: NotRequired[int | tuple[int, str]]
-    default_request_example: NotRequired[OpExample]
-    default_response_example: NotRequired[OpExample]
+    request_example: NotRequired[OpExample]
+    request_examples: NotRequired[dict[str, OpExample]]
+    request_examples_by_mime: NotRequired[dict[str, dict[str, OpExample]]]
+    response_content_type: NotRequired[str]  # TODO: allow also list like for accept?
+    response_example: NotRequired[OpExample]
+    response_examples: NotRequired[dict[str, OpExample]]
     more_response_docs: NotRequired[OpResponseDocByHttpCode]
 
 
@@ -256,65 +419,123 @@ def get_operation_id_or_default(operation_id: str | None, func: Callable[..., An
     return "".join([func_name_parts[0]] + [p.capitalize() for p in func_name_parts[1:]])
 
 
-def inspect_operation(
-    method: HttpMethod,
+def inspect_function(
     func: Callable[..., Any],
-    **kwargs: Unpack[OperationKwArgs],
-) -> OpInfoWithSpec:
+    op_id: str,
+    accept: str | list[str] | None,
+    response_ct: str | None,
+) -> OpFuncSpec:
     signature = inspect.signature(func)
-    op_input = None
-    op_output_type = None
-    op_id = get_operation_id_or_default(kwargs.get("operation_id"), func)
+    is_sync = not inspect.iscoroutinefunction(func)
 
+    # --- http request params of various sort
     input_params = signature.parameters.keys() - {"self"}
 
     header_input, header_params = find_params(signature, input_params, OpParamKind.HEADER, op_id, case_sensitive=False)
     query_input, query_params = find_params(signature, input_params, OpParamKind.QUERY, op_id)
     path_input, path_params = find_params(signature, input_params, OpParamKind.PATH, op_id)
-
     input_params.difference_update(header_params | query_params | path_params)
 
+    context_input_name = find_context_input(signature, input_params, is_sync=is_sync)
+    if context_input_name is not None:
+        input_params.discard(context_input_name)
+
+    # --- http request body
+    op_input = None
     if len(input_params) == 1:
         param = signature.parameters[input_params.pop()]
         param_annotation = param.annotation
         param_type = param.annotation
         optional = False
 
-        if is_union_type(param_annotation):
-            unpacked = unpack_optional_type(param_annotation)
+        if type_util.is_union_type(param_annotation):
+            unpacked = type_util.unpack_optional_type(param_annotation)
             if unpacked.is_optional_for_single_type:
                 param_type = unpacked.types_without_none[0]
                 optional = True
             else:
                 raise FalconSwoopConfigError(f"Operation input parameter {param.name} cannot be a union")
 
-        if not issubclass(param_type, BaseModel):
+        if not type_util.safe_issubclass(param_type, BODY_TYPES):
             raise FalconSwoopConfigError(
-                f"Operation input parameter {param.name} needs to be a subclass of {BaseModel.__name__}"
+                f"Operation input parameter {param.name} needs to be one of {BODY_TYPES}, bot got {param_type}"
             )
-        op_input = OpApiModelInput(param.name, param_type, optional)
+        if isinstance(accept, str):
+            accept = [accept]
+        op_input = OpFuncInput(
+            name=param.name,
+            dtype=param_type,
+            optional=optional,
+            accept=OpFuncInput.parse_accept_config(accept, param_type),
+        )
+        op_input.check_binary_dtype(is_sync)
+
     elif len(input_params) > 1:
-        raise FalconSwoopConfigError("More than 1 parameter found")
+        raise FalconSwoopConfigError(f"More than 1 parameter found that could be http body: {','.join(input_params)}")
 
-    if signature.return_annotation not in (signature.empty, None):
-        if is_union_type(signature.return_annotation):
+    # --- http response body
+    output_candidate = signature.return_annotation
+    hinted_wrapper = False
+    if output_candidate == signature.empty:
+        output_candidate = None
+
+    if type_util.is_generic_type(output_candidate, OpOutput):
+        output_candidate = type_util.unpack_generic_type(output_candidate, none_type_to_none=True)[0]
+        hinted_wrapper = True
+    elif type_util.safe_issubclass(output_candidate, OpOutput):
+        raise FalconSwoopConfigError(
+            f"The payload type for {OpOutput.__name__} is missing, "
+            f"the type hint should be {OpOutput.__name__}[<return_type>]"
+        )
+
+    output_type = None
+    if output_candidate is not None:
+        if type_util.is_union_type(output_candidate):
             raise FalconSwoopConfigError("Return type cannot be a union or optional")
-        if not issubclass(signature.return_annotation, BaseModel):
-            raise FalconSwoopConfigError(f"Return type needs to be a subclass of {BaseModel.__name__}")
-        op_output_type = signature.return_annotation
+        if not type_util.safe_issubclass(output_candidate, BODY_TYPES):
+            raise FalconSwoopConfigError(f"Return type needs to be one of {BODY_TYPES}, bot got {output_candidate}")
+        output_type = OpFuncOutputType(
+            dtype=output_candidate,
+            content_type=OpFuncOutputType.parse_content_type_config(response_ct, output_candidate),
+        )
+        output_type.check_binary_dtype(is_sync)
+    op_output = OpFuncOutput(
+        output=output_type,
+        hinted_wrapper=hinted_wrapper,
+    )
 
-    # default_accept: list[MimeType] = ["application/json"]
-    # accept=kwargs.get("accept", default_accept),
+    return OpFuncSpec(
+        func_input=op_input,
+        func_output=op_output,
+        query_input=query_input,
+        path_input=path_input,
+        header_input=header_input,
+        context_input_name=context_input_name,
+    )
+
+
+def inspect_operation(
+    method: HttpMethod,
+    func: Callable[..., Any],
+    **kwargs: Unpack[OperationKwArgs],
+) -> OpInfoWithSpec:
+    op_id = get_operation_id_or_default(kwargs.get("operation_id"), func)
+    response_ct = kwargs.get("response_content_type")
+
+    func_spec = inspect_function(
+        func,
+        op_id=op_id,
+        accept=kwargs.get("accept"),
+        response_ct=response_ct,
+    )
+    op_input = func_spec.func_input
+
     request_doc: OpRequestDoc | None = None
     if op_input is not None:
-        request_doc = OpRequestDoc(
-            required=not op_input.optional,
-            by_mime={
-                "application/json": OpTypeDoc.with_default_example(
-                    model_type=op_input.model_type,
-                    example=kwargs.get("default_request_example"),
-                )
-            },
+        request_doc = op_input.to_doc(
+            example=kwargs.get("request_example"),
+            examples=kwargs.get("request_examples"),
+            examples_by_mime=kwargs.get("request_examples_by_mime"),
         )
 
     resp_status: int = 200
@@ -327,13 +548,8 @@ def inspect_operation(
             resp_desc = desc
         case _:
             raise ValueError("Could not match default status input")
-    response_type_by_mime = {}
-    if op_output_type is not None:
-        response_type_by_mime["application/json"] = OpTypeDoc.with_default_example(
-            model_type=op_output_type,
-            example=kwargs.get("default_response_example"),
-        )
-    response_docs = {resp_status: OpResponseDoc(description=resp_desc, by_mime=response_type_by_mime)}
+    response_doc = func_spec.func_output.to_doc(description=resp_desc)
+    response_docs = {resp_status: response_doc}
     more_response_docs = kwargs.get("more_response_docs", {})
     if resp_status in more_response_docs:
         raise FalconSwoopConfigError(
@@ -351,13 +567,11 @@ def inspect_operation(
         request_doc=request_doc,
         response_docs=response_docs,
         func=func,
-        func_spec=OpFuncSpec(
-            func_input=op_input,
-            func_output_model=op_output_type,
-            query_input=query_input,
-            path_input=path_input,
-            header_input=header_input,
-        ),
+        # ---
+        func_spec=func_spec,
+        default_status_code=resp_status,
+        default_content_type=response_ct,
+        require_valid_content_type=kwargs.get("require_valid_content_type", True),
     )
 
 
@@ -382,7 +596,6 @@ class OperationDocKwArgs(TypedDict):
     summary: NotRequired[str]
     description: NotRequired[str]
     tags: NotRequired[list[str]]
-    accept: NotRequired[list[MimeType]]
     deprecated: NotRequired[bool]
     request_doc: NotRequired[OpRequestDoc]
     response_docs: NotRequired[OpResponseDocByHttpCode]

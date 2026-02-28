@@ -1,60 +1,28 @@
 import collections
 import warnings
-from dataclasses import dataclass
 from typing import Any, Generator, Mapping
 
 import falcon
 import falcon.asgi
 from pydantic import BaseModel, ValidationError
 
-from falcon_swoop.error import FalconSwoopError, FalconSwoopConfigError, FalconSwoopWarning
-from falcon_swoop.operation import ATTR_OPERATION, HttpMethod, OpInfo, OpInfoWithSpec, OpFuncParamInput, operation
+from falcon_swoop.context import OpContext, OpAsgiContext
+from falcon_swoop.error import FalconSwoopConfigError, FalconSwoopWarning
+from falcon_swoop.binary import OpBinary, OpAsgiBinary
+from falcon_swoop.operation import ATTR_OPERATION, HttpMethod, OpInfo, OpInfoWithSpec, OpFuncParamInput
+from falcon_swoop.output import OpOutput
 from falcon_swoop.route import ApiRoute
-
-
-@dataclass
-class RequestContext:
-    req: falcon.Request
-    resp: falcon.Response
-
-
-@dataclass
-class AsgiRequestContext:
-    req: falcon.asgi.Request
-    resp: falcon.asgi.Response
 
 
 class ApiBaseResource:
 
     def __init__(self, route: str):
         self.api_route = ApiRoute(route)
-        self.__context: AsgiRequestContext | RequestContext | None = None
         self.__operation_by_method = self.__setup()
 
     def api_ops(self) -> Generator[OpInfo, None, None]:
         for op in self.__operation_by_method.values():
             yield op
-
-    def __get_ctx(self) -> AsgiRequestContext | RequestContext:
-        if self.__context is None:
-            raise FalconSwoopError(
-                f"No context available, a (async) context is only available within methods decorated with @{operation.__name__}"
-            )
-        return self.__context
-
-    @property
-    def ctx(self) -> RequestContext:
-        ctx = self.__get_ctx()
-        if isinstance(ctx, AsgiRequestContext):
-            raise FalconSwoopError(f"The available context is asynchronous, please use '.ctx' instead")
-        return ctx
-
-    @property
-    def asgi_ctx(self) -> AsgiRequestContext:
-        ctx = self.__get_ctx()
-        if isinstance(ctx, RequestContext):
-            raise FalconSwoopError(f"The available context is synchronous, please use '.asgi_ctx' instead")
-        return ctx
 
     def __check_operation_config(
         self, operations_by_method: dict[HttpMethod, list[OpInfo]]
@@ -127,7 +95,7 @@ class ApiBaseResource:
         self.__check_path_parameter_match(operation_by_method)
         for method, op in operation_by_method.items():
             if isinstance(op, OpInfoWithSpec):
-                self.__patch_op(method, sync=not op.is_coroutine)
+                self.__patch_op(method, sync=op.is_sync)
         return operation_by_method
 
     def __collect_typed_kwargs(
@@ -170,18 +138,54 @@ class ApiBaseResource:
         if not isinstance(op, OpInfoWithSpec):
             raise ValueError(f"Expected object of subtype {OpInfoWithSpec.__name__}")
 
+        ct = req.content_type
+        fi = op.func_spec.func_input
+        if ct is not None and fi is not None and op.require_valid_content_type and not fi.can_accept(ct):
+            accepted_content_types = ", ".join(fi.accept)
+            raise falcon.HTTPNotAcceptable(description=f"Accepted content types are: {accepted_content_types}")
+
         kwargs = {}
         kwargs.update(self.__collect_typed_kwargs(req.params, op.func_spec.query_input))
         kwargs.update(self.__collect_typed_kwargs(path_params, op.func_spec.path_input))
         kwargs.update(self.__collect_typed_kwargs(req.headers, op.func_spec.header_input))
         return op, kwargs
 
-    def __finish_operation(self, resp: falcon.Response | falcon.asgi.Response, data_output: Any | None) -> None:
-        if data_output is not None:
-            if not isinstance(data_output, BaseModel):
-                raise ValueError(f"Expected object of subtype {BaseModel.__name__}, got {type(data_output)} instead")
-            resp.media = data_output.model_dump()
-        resp.status = falcon.HTTP_OK
+    def __finish_operation(
+        self,
+        op: OpInfoWithSpec,
+        resp: falcon.Response | falcon.asgi.Response,
+        output: Any | None,
+    ) -> None:
+        if not isinstance(output, OpOutput):
+            output = OpOutput(payload=output)
+
+        payload = output.payload
+        if payload is None:
+            pass
+        elif isinstance(payload, BaseModel):
+            resp.media = payload.model_dump(mode="json", by_alias=True)
+        elif isinstance(payload, (OpBinary, OpAsgiBinary)):
+            ct = payload.content_type or op.default_content_type
+            if ct is None:
+                ct = "text/plain" if payload.charset is not None else "application/octet-stream"
+            if payload.charset is not None:
+                ct = f"{ct}; charset={payload.charset}"
+            resp.stream = payload.rio
+            resp.content_length = payload.content_length
+            resp.content_type = ct
+        else:
+            raise ValueError(f"Got payload of unsupported type: {type(payload)}")
+
+        if output.cache_control is not None:
+            resp.cache_control = output.cache_control
+        if output.etag is not None:
+            resp.etag = output.etag
+        if output.expires is not None:
+            resp.expires = output.expires
+        if output.content_type is not None:
+            resp.content_type = output.content_type
+        resp.headers.update(output.headers)
+        resp.status_code = output.status_code if output.status_code is not None else op.default_status_code
 
     def __on_request(
         self,
@@ -192,23 +196,28 @@ class ApiBaseResource:
     ) -> None:
         op, kwargs = self.__prepare_operation(method=method, req=req, path_params=path_params)
         spec = op.func_spec
+        if spec.context_input_name is not None:
+            kwargs[spec.context_input_name] = OpContext(req, resp)
         if spec.func_input is not None:
-            if spec.func_input.optional:
-                media = req.get_media(default_when_empty=None)
-                if media is None:
-                    data = None
+            dtype = spec.func_input.dtype
+            if issubclass(dtype, BaseModel):
+                if spec.func_input.optional:
+                    media = req.get_media(default_when_empty=None)
+                    data = None if media is None else dtype(**media)
                 else:
-                    data = spec.func_input.model_type(**media)
-            else:
-                # calling req.get_media() again to maintain default falcon behavior for empty body when JSON is expected
-                data = spec.func_input.model_type(**req.get_media())
-            kwargs[spec.func_input.name] = data
+                    # calling req.get_media() again to maintain default falcon behavior for empty body when JSON is expected
+                    data = dtype(**req.get_media())
+                kwargs[spec.func_input.name] = data
 
-        self.__context = RequestContext(req, resp)
+            if issubclass(dtype, OpBinary):
+                kwargs[spec.func_input.name] = dtype(
+                    binary=req.bounded_stream,
+                    content_length=req.content_length,
+                    content_type=req.content_type,
+                )
+
         data_output = op.func(self, **kwargs)
-        self.__context = None
-
-        self.__finish_operation(resp, data_output)
+        self.__finish_operation(op, resp, data_output)
 
     async def __on_request_async(
         self,
@@ -219,21 +228,26 @@ class ApiBaseResource:
     ) -> None:
         op, kwargs = self.__prepare_operation(method=method, req=req, path_params=path_params)
         spec = op.func_spec
+        if spec.context_input_name is not None:
+            kwargs[spec.context_input_name] = OpAsgiContext(req, resp)
         if spec.func_input is not None:
-            if spec.func_input.optional:
-                media = await req.get_media(default_when_empty=None)
-                if media is None:
-                    data = None
+            dtype = spec.func_input.dtype
+            if issubclass(dtype, BaseModel):
+                if spec.func_input.optional:
+                    media = await req.get_media(default_when_empty=None)
+                    data = None if media is None else dtype(**media)
                 else:
-                    data = spec.func_input.model_type(**media)
-            else:
-                # calling req.get_media() again to maintain default falcon behavior for empty body when JSON is expected
-                media = await req.get_media()
-                data = spec.func_input.model_type(**media)
-            kwargs[spec.func_input.name] = data
+                    # calling req.get_media() again to maintain default falcon behavior for empty body when JSON is expected
+                    media = await req.get_media()
+                    data = dtype(**media)
+                kwargs[spec.func_input.name] = data
 
-        self.__context = AsgiRequestContext(req, resp)
+            if issubclass(dtype, OpAsgiBinary):
+                kwargs[spec.func_input.name] = dtype(
+                    binary=req.bounded_stream,
+                    content_length=req.content_length,
+                    content_type=req.content_type,
+                )
+
         data_output = await op.func(self, **kwargs)
-        self.__context = None
-
-        self.__finish_operation(resp, data_output)
+        self.__finish_operation(op, resp, data_output)

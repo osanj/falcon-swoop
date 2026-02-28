@@ -1,8 +1,7 @@
 import re
 from enum import Enum, unique
-from typing import Any, Literal, Callable
+from typing import Any, Literal
 
-from pydantic.main import IncEx
 from typing_extensions import Self
 
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -10,26 +9,10 @@ from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, field_validator, 
 JsonSchema = dict[str, Any]
 
 
-@unique
-class OpenApiMimeType(str, Enum):
-    ANY = "*/*"
-    OCTET_STREAM = "application/octet-stream"
-    JSON = "application/json"
-    YAML = "application/yaml"
-    XML = "application/xml"
-    PDF = "application/pdf"
-    PNG = "image/png"
-    JPEG = "image/jpeg"
-    MP4 = "video/mp4"
-    WEBM_VIDEO = "video/webm"
-    MPEG_AUDIO = "audio/mpeg"  # mp3
-    MP4_AUDIO = "audio/mp4"  # m4a
-    WAV = "audio/wav"
-    WEBM_AUDIO = "audio/webm"
-    HTML = "text/html"
-    TEXT_PLAIN = "text/plain"
-    MULTIPART_FORM_DATA = "multipart/form-data"
-    # MULTIPART_MIXED = "multipart/mixed"  # When to use?
+def check_content_types(content_types: list[str]) -> None:
+    for ct in content_types:
+        if not (ct.count("/") == 1 and len(ct) >= 3):
+            raise ValueError(f"Invalid content type {ct}")
 
 
 @unique
@@ -119,15 +102,25 @@ class OpenApiRequestBody(OpenApiSpecModel):
     """https://spec.openapis.org/oas/v3.1.0#request-body-object"""
 
     description: str | None = None
-    content: dict[OpenApiMimeType, OpenApiMediaType]
+    content: dict[str, OpenApiMediaType]
     required: bool = False
+
+    @model_validator(mode="after")
+    def ensure_valid_content_types(self) -> Self:
+        check_content_types(list(self.content.keys()))
+        return self
 
 
 class OpenApiResponse(OpenApiSpecModel):
     """https://spec.openapis.org/oas/v3.1.0#response-object"""
 
     description: str
-    content: dict[OpenApiMimeType, OpenApiMediaType]
+    content: dict[str, OpenApiMediaType]
+
+    @model_validator(mode="after")
+    def ensure_valid_content_types(self) -> Self:
+        check_content_types(list(self.content.keys()))
+        return self
 
 
 class OpenApiOperation(OpenApiSpecModel):

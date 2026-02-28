@@ -57,3 +57,17 @@ def unpack_literal_type(hint: Any) -> UnpackedLiteralType:
         is_literal=True,
         literal_values=list(get_args(hint)),
     )
+
+
+def is_generic_type(hint: Any, exp_type: type[Any]) -> bool:
+    return get_origin(hint) is exp_type
+
+
+def unpack_generic_type(hint: Any, none_type_to_none: bool) -> list[Any]:
+    args = get_args(hint)
+    if not none_type_to_none:
+        return list(args)
+    args_out = []
+    for arg in args:
+        args_out.append(None if arg == types.NoneType else arg)
+    return args_out

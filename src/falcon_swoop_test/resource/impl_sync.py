@@ -2,7 +2,17 @@ from typing import Any, Literal
 
 import falcon
 
-from falcon_swoop import ApiBaseResource, operation, query_param, header_param, operation_doc
+from falcon_swoop import (
+    ApiBaseResource,
+    OpContext,
+    OpOutput,
+    operation,
+    query_param,
+    header_param,
+    operation_doc,
+    OpBinary,
+    path_param,
+)
 from falcon_swoop_test.resource.common import WeatherLevel, BasicInput, BasicOutput, country_param, city_id_param
 
 
@@ -20,8 +30,8 @@ class BasicResource1(ApiBaseResource):
         return BasicOutput(data={"limit": limit, "offset": offset})
 
     @operation(method="POST")
-    def post_something(self, basic_input: BasicInput) -> BasicOutput:
-        content_type = self.ctx.req.content_type
+    def post_something(self, basic_input: BasicInput, ctx: OpContext) -> BasicOutput:
+        content_type = ctx.req.content_type
         return BasicOutput(data={"param1": basic_input.param1, "content_type": content_type})
 
 
@@ -39,7 +49,7 @@ class BasicResource2(ApiBaseResource):
     ) -> BasicOutput:
         return BasicOutput(data={"country": country, "city": city_id, "api_key": api_key})
 
-    @operation(method="PUT")
+    @operation(method="PUT", default_status=201)
     def put_city_data(
         self,
         req: BasicInput | None,
@@ -74,3 +84,70 @@ class BasicResource3(ApiBaseResource):
         unit: Literal["C", "F"] = query_param(default="C"),
     ) -> BasicOutput:
         return BasicOutput(data={"temperature": 20, "mode": mode.name, "unit": unit})
+
+    @operation(method="PUT")
+    def add_weather_sample(
+        self,
+        sample: BasicInput,
+        transient: bool = query_param(default=True),
+    ) -> OpOutput[BasicOutput]:
+        payload = BasicOutput(data={"param1": sample.param1, "transient": transient})
+        return OpOutput(
+            payload=payload,
+            status_code=200 if transient else 201,
+        )
+
+
+class BasicResource4(ApiBaseResource):
+
+    def __init__(self) -> None:
+        super().__init__("/blob/{blobId}")
+
+    @operation(method="GET", response_content_type="image/png")
+    def get_blob(
+        self,
+        blob_id: str = path_param(alias="blobId"),
+    ) -> OpBinary:
+        return OpBinary(b"blob" + blob_id.encode())
+
+    @operation(method="POST", accept="image/*")
+    def add_blob(
+        self,
+        blob: OpBinary,
+        blob_id: str = path_param(alias="blobId"),
+    ) -> BasicOutput:
+        data = blob.read()
+        output = BasicOutput(
+            data={
+                "body": data.decode(),
+                "content_length": blob.content_length,
+                "content_type": blob.content_type,
+                "charset": blob.charset,
+            }
+        )
+        return output
+
+    @operation(method="PATCH", response_content_type="text/csv")
+    def get_blob_stats(
+        self,
+        blob_id: str = path_param(alias="blobId"),
+    ) -> OpOutput[OpBinary]:
+        return OpOutput(
+            OpBinary("stat;count\nsïzê;12345\näccessés;123", charset="latin_1"),
+            etag=f"etag-{blob_id}",
+        )
+
+    @operation(method="PUT", accept="text/csv")
+    def add_blob_stats(
+        self,
+        stats: OpBinary,
+        blob_id: str = path_param(alias="blobId"),
+    ) -> BasicOutput:
+        return BasicOutput(
+            data={
+                "body": stats.text(),
+                "content_length": stats.content_length,
+                "content_type": stats.content_type,
+                "charset": stats.charset,
+            }
+        )

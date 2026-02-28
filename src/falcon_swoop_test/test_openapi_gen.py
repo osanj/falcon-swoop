@@ -9,20 +9,25 @@ from falcon_swoop import (
     operation,
     operation_doc,
     query_param,
+    OpBinary,
     OpRequestDoc,
     OpResponseDoc,
     OpTypeDoc,
-    OpenApiGenerator, path_param, header_param,
+    OpenApiGenerator,
+    path_param,
+    header_param,
 )
 from falcon_swoop.openapi.spec import (
     OpenApiReference,
     OpenApiResponse,
     OpenApiRequestBody,
-    OpenApiMimeType,
     OpenApiDocument,
     OpenApiParameterType,
     OpenApiParameter,
 )
+
+CT_JSON = "application/json"
+CT_TEXT = "text/plain"
 
 
 class RecordItemRequest(BaseModel):
@@ -138,24 +143,47 @@ class Post(ApiBaseResource):
     def __init__(self) -> None:
         super().__init__(self.PATH)
 
-    @operation(method="GET")
+    @operation(method="GET", tags=["posts"])
     def get_post(
         self,
         post_id: int = path_param(alias="postId"),
     ) -> PostView:
         return PostView(id=post_id, content="lorem ipsum")
 
-    @operation(method="DELETE")
-    def delete_post(self,
-                    post_id: int = path_param(alias="postId"),
-                    admin_key: str = header_param(alias="X-ADMIN-KEY")) -> None:
+    @operation(method="DELETE", tags=["posts"])
+    def delete_post(
+        self, post_id: int = path_param(alias="postId"), admin_key: str = header_param(alias="X-ADMIN-KEY")
+    ) -> None:
         pass
+
+
+class PostMedia(ApiBaseResource):
+    PATH = "/posts/{postId}/media"
+
+    def __init__(self) -> None:
+        super().__init__(self.PATH)
+
+    @operation(
+        method="PUT",
+        tags=["posts"],
+        accept=["image/*", "application/pdf"],
+        default_status=201,
+        response_content_type="text/plain",
+        response_example="id=123",
+        more_response_docs={400: OpResponseDoc("bad_bytes")},
+    )
+    def add_media(
+        self,
+        media: OpBinary,
+        post_id: int = path_param(alias="postId"),
+    ) -> OpBinary:
+        return OpBinary("id=999")
 
 
 @pytest.fixture(scope="module")
 def gen() -> OpenApiGenerator:
     return OpenApiGenerator(
-        resources=[Item(), Items(), Post()],
+        resources=[Item(), Items(), Post(), PostMedia()],
         title="Item API",
         version="0.0.1",
     )
@@ -184,7 +212,7 @@ def test_usage_of_model_references(spec: OpenApiDocument) -> None:
     assert get_item is not None
     get_item_200_resp = get_item.responses["200"]
     assert isinstance(get_item_200_resp, OpenApiResponse)
-    get_item_200_resp_content = get_item_200_resp.content[OpenApiMimeType.JSON].schema_
+    get_item_200_resp_content = get_item_200_resp.content[CT_JSON].schema_
     assert isinstance(get_item_200_resp_content, OpenApiReference)
     assert get_item_200_resp_content.ref.startswith(exp_ref)
 
@@ -192,7 +220,7 @@ def test_usage_of_model_references(spec: OpenApiDocument) -> None:
     assert post_item is not None
     post_item_req = post_item.request_body
     assert isinstance(post_item_req, OpenApiRequestBody)
-    post_item_req_content = post_item_req.content[OpenApiMimeType.JSON].schema_
+    post_item_req_content = post_item_req.content[CT_JSON].schema_
     assert isinstance(post_item_req_content, OpenApiReference)
     assert post_item_req_content.ref.startswith(exp_ref)
 
@@ -201,7 +229,7 @@ def test_usage_of_model_references(spec: OpenApiDocument) -> None:
     assert get_items.request_body is None
     get_items_200_resp = get_items.responses["200"]
     assert isinstance(get_items_200_resp, OpenApiResponse)
-    get_item_200_resp_content = get_items_200_resp.content[OpenApiMimeType.JSON].schema_
+    get_item_200_resp_content = get_items_200_resp.content[CT_JSON].schema_
     assert isinstance(get_item_200_resp_content, OpenApiReference)
     assert get_item_200_resp_content.ref.startswith(exp_ref)
 
@@ -227,21 +255,21 @@ def test_spec_from_manual_doc(spec: OpenApiDocument) -> None:
 
     delete_items_req = delete_items.request_body
     assert isinstance(delete_items_req, OpenApiRequestBody)
-    assert delete_items_req.content.keys() == {OpenApiMimeType.JSON}
-    delete_items_req_content = delete_items_req.content[OpenApiMimeType.JSON]
+    assert delete_items_req.content.keys() == {CT_JSON}
+    delete_items_req_content = delete_items_req.content[CT_JSON]
     assert isinstance(delete_items_req_content.schema_, OpenApiReference)
     assert delete_items_req_content.examples.keys() == {"default"}
     assert delete_items.responses.keys() == {"200", "400", "401"}
 
     delete_resp_200 = delete_items.responses["200"]
     assert isinstance(delete_resp_200, OpenApiResponse)
-    assert delete_resp_200.content[OpenApiMimeType.JSON].schema_ is not None
-    assert len(delete_resp_200.content[OpenApiMimeType.JSON].examples) == 0
+    assert delete_resp_200.content[CT_JSON].schema_ is not None
+    assert len(delete_resp_200.content[CT_JSON].examples) == 0
 
     delete_resp_400 = delete_items.responses["400"]
     assert isinstance(delete_resp_400, OpenApiResponse)
-    assert delete_resp_400.content[OpenApiMimeType.TEXT_PLAIN].schema_ == {"type": "string"}
-    assert delete_resp_400.content[OpenApiMimeType.TEXT_PLAIN].examples.keys() == {"default"}
+    assert delete_resp_400.content[CT_TEXT].schema_ == {"type": "string"}
+    assert delete_resp_400.content[CT_TEXT].examples.keys() == {"default"}
 
     delete_resp_401 = delete_items.responses["401"]
     assert isinstance(delete_resp_401, OpenApiResponse)
@@ -321,3 +349,22 @@ def test_param_reuse(gen: OpenApiGenerator) -> None:
     gen.settings.reuse_parameters_if_possible = False
     spec2 = gen.generate().spec
     assert len(spec1.components.parameters) < len(spec2.components.parameters)
+
+
+def test_doc_gen_for_binary_op_data(spec: OpenApiDocument) -> None:
+    upload_op = spec.paths[PostMedia.PATH].put
+    assert upload_op is not None
+
+    binary_schema = {"type": "string", "format": "binary"}
+
+    assert isinstance(upload_op.request_body, OpenApiRequestBody)
+    assert upload_op.request_body.required
+    assert upload_op.request_body.content.keys() == {"image/*", "application/pdf"}
+    assert upload_op.request_body.content["image/*"].schema_ == binary_schema
+    assert upload_op.request_body.content["application/pdf"].schema_ == binary_schema
+
+    assert upload_op.responses.keys() == {"201", "400"}
+    assert isinstance(upload_op.responses["201"], OpenApiResponse)
+    assert upload_op.responses["201"].description == "ok"
+    assert upload_op.responses["201"].content["text/plain"].schema_ == binary_schema
+    assert upload_op.responses["400"].description == "bad_bytes"

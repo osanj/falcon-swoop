@@ -5,6 +5,7 @@ from pydantic import BaseModel, create_model
 
 from falcon_swoop import ApiBaseResource
 from falcon_swoop.error import FalconSwoopDocGenerationError
+from falcon_swoop.binary import OpAsgiBinary, OpBinary
 from falcon_swoop.openapi.pydantic_util import model_json_schema
 from falcon_swoop.openapi.spec import (
     JsonSchema,
@@ -13,7 +14,6 @@ from falcon_swoop.openapi.spec import (
     OpenApiExample,
     OpenApiInfo,
     OpenApiMediaType,
-    OpenApiMimeType,
     OpenApiOperation,
     OpenApiPathItem,
     OpenApiParameter,
@@ -182,6 +182,8 @@ class OpenApiGenerator:
             return None
         if issubclass(op_type, str):
             return {"type": "string"}
+        if issubclass(op_type, (OpBinary, OpAsgiBinary)):
+            return {"type": "string", "format": "binary"}
         return self.__model_collector.get_reference(op_type)
 
     def map_example(self, example: OpExample) -> OpenApiExample:
@@ -201,13 +203,13 @@ class OpenApiGenerator:
     def map_request_doc(self, rd: OpRequestDoc) -> OpenApiRequestBody | None:
         content = {}
         for mime, resp_type in rd.by_mime.items():
-            content[OpenApiMimeType(mime)] = self.map_media_type(resp_type)
+            content[mime] = self.map_media_type(resp_type)
         return OpenApiRequestBody(required=rd.required, content=content)
 
     def map_response_doc(self, rd: OpResponseDoc) -> OpenApiResponse:
         content = {}
         for mime, resp_type in rd.by_mime.items():
-            content[OpenApiMimeType(mime)] = self.map_media_type(resp_type)
+            content[mime] = self.map_media_type(resp_type)
         return OpenApiResponse(description=rd.description, content=content)
 
     def map_operation_info(self, op_info: OpInfo) -> OpenApiOperation:

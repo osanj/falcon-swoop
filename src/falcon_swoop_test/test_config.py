@@ -7,10 +7,16 @@ from falcon_swoop import (
     ApiBaseResource,
     FalconSwoopConfigError,
     FalconSwoopConfigWarning,
+    OpAsgiContext,
+    OpContext,
+    OpAsgiBinary,
+    OpBinary,
     operation,
     header_param,
     path_param,
     query_param,
+    OpOutput,
+    OpResponseDoc,
 )
 
 
@@ -208,3 +214,114 @@ def test_config_warning_for_header_case_insensitivity() -> None:
                 accept: str | None = header_param(alias="Accept", default=None),
             ) -> DummyModel:
                 return DummyModel()
+
+
+def test_config_error_for_multiple_contexts() -> None:
+    with pytest.raises(FalconSwoopConfigError, match="Duplicated context parameter"):
+
+        class Resource(ApiBaseResource):
+            @operation(method="GET")
+            def get(self, ctx: OpContext, extra_ctx: OpContext) -> DummyModel:
+                return DummyModel()
+
+
+def test_config_error_for_wrong_context_type() -> None:
+    with pytest.raises(
+        FalconSwoopConfigError,
+        match=f"Argument ctx has type {OpAsgiContext}, but expected {OpContext}",
+    ):
+
+        class Resource(ApiBaseResource):
+            @operation(method="GET")
+            def get(self, ctx: OpAsgiContext) -> DummyModel:
+                return DummyModel()
+
+
+def test_config_error_for_output_without_type() -> None:
+    with pytest.raises(
+        FalconSwoopConfigError,
+        match=f"The payload type for {OpOutput.__name__} is missing",
+    ):
+
+        class Resource(ApiBaseResource):
+            @operation(method="GET")
+            def get(self) -> OpOutput:  # type: ignore[type-arg]
+                return OpOutput(payload=None, status_code=400)
+
+
+def test_config_output_with_none_is_possible() -> None:
+    class Resource(ApiBaseResource):
+        @operation(method="GET")
+        def get(self) -> OpOutput[None]:
+            return OpOutput(payload=None, status_code=400)
+
+
+def test_config_error_for_default_status_code() -> None:
+    status_code = 299
+    with pytest.raises(
+        FalconSwoopConfigError,
+        match=f"Response docs for default HTTP status code {status_code} are generated",
+    ):
+
+        class Resource(ApiBaseResource):
+            @operation(
+                method="POST",
+                default_status=(status_code, "Something was created"),
+                more_response_docs={status_code: OpResponseDoc("Something else was done")},
+            )
+            def add_entry(self) -> None:
+                pass
+
+
+def test_config_error_for_async_binary_input_on_sync_operation() -> None:
+    with pytest.raises(FalconSwoopConfigError, match="Operation is sync, but input type is configured as"):
+
+        class Resource(ApiBaseResource):
+            @operation(method="POST")
+            def post_dummy(self, body: OpAsgiBinary) -> None:
+                pass
+
+
+def test_config_error_for_async_binary_output_on_sync_operation() -> None:
+    with pytest.raises(FalconSwoopConfigError, match="Operation is sync, but return type is configured as"):
+
+        class Resource(ApiBaseResource):
+            @operation(method="GET")
+            def get_dummy(self) -> OpAsgiBinary:
+                return OpAsgiBinary(b"test")
+
+
+def test_config_error_for_async_binary_output_on_sync_operation_2() -> None:
+    with pytest.raises(FalconSwoopConfigError, match="Operation is sync, but return type is configured as"):
+
+        class Resource(ApiBaseResource):
+            @operation(method="GET")
+            def get_dummy(self) -> OpOutput[OpAsgiBinary]:
+                return OpOutput(OpAsgiBinary(b"test"), headers={"x-dummy": "dummy"})
+
+
+def test_config_error_for_binary_input_on_async_operation() -> None:
+    with pytest.raises(FalconSwoopConfigError, match="Operation is async, but input type is configured as"):
+
+        class Resource(ApiBaseResource):
+            @operation(method="POST")
+            async def post_dummy(self, body: OpBinary) -> None:
+                pass
+
+
+def test_config_error_for_binary_output_on_async_operation() -> None:
+    with pytest.raises(FalconSwoopConfigError, match="Operation is async, but return type is configured as"):
+
+        class Resource(ApiBaseResource):
+            @operation(method="GET")
+            async def get_dummy(self) -> OpBinary:
+                return OpBinary(b"test")
+
+
+def test_config_error_for_binary_output_on_async_operation_2() -> None:
+    with pytest.raises(FalconSwoopConfigError, match="Operation is async, but return type is configured as"):
+
+        class Resource(ApiBaseResource):
+            @operation(method="GET")
+            async def get_dummy(self) -> OpOutput[OpBinary]:
+                return OpOutput(OpBinary(b"test"), headers={"x-dummy": "dummy"})
