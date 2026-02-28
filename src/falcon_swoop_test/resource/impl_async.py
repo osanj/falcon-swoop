@@ -104,12 +104,12 @@ class BasicResource4(ApiBaseResource):
     def __init__(self) -> None:
         super().__init__("/blob/{blobId}")
 
-    @operation(method="GET")
+    @operation(method="GET", response_content_type="image/png")
     async def get_blob(
         self,
         blob_id: str = path_param(alias="blobId"),
     ) -> HttpBinary:
-        return HttpBinary(binary=b"blob" + blob_id.encode())
+        return HttpBinary(b"blob" + blob_id.encode())
 
     @operation(method="POST")
     async def add_blob(
@@ -132,7 +132,7 @@ class BasicResource4(ApiBaseResource):
         self,
         blob_id: str = path_param(alias="blobId"),
     ) -> HttpText:
-        return HttpText(text="stat;count\nsize;12345\naccesses;123", content_type="text/csv")
+        return HttpText("stat;count\nsïzê;12345\näccessés;123", content_type="text/csv", charset="latin_1")
 
     @operation(method="PUT")
     async def add_blob_stats(
@@ -140,12 +140,11 @@ class BasicResource4(ApiBaseResource):
         stats: HttpText,
         blob_id: str = path_param(alias="blobId"),
     ) -> BasicOutput:
-        text = stats.tio.read()
-        output = BasicOutput(
+        return BasicOutput(
             data={
-                "data": text,
+                "data": stats.text(),
                 "content_length": stats.content_length,
                 "content_type": stats.content_type,
+                "charset": stats.charset,
             }
         )
-        return output

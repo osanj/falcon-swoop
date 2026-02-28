@@ -230,6 +230,7 @@ class OpInfo:
 class OpInfoWithSpec(OpInfo):
     func_spec: OpFuncSpec
     default_status_code: int
+    default_content_type: str | None
     require_valid_content_type: bool
 
 
@@ -495,12 +496,13 @@ def inspect_operation(
     **kwargs: Unpack[OperationKwArgs],
 ) -> OpInfoWithSpec:
     op_id = get_operation_id_or_default(kwargs.get("operation_id"), func)
+    response_ct = kwargs.get("response_content_type")
 
     func_spec = inspect_function(
         func,
         op_id=op_id,
         accept=kwargs.get("accept"),
-        response_ct=kwargs.get("response_content_type"),
+        response_ct=response_ct,
     )
     op_input = func_spec.func_input
 
@@ -544,6 +546,7 @@ def inspect_operation(
         # ---
         func_spec=func_spec,
         default_status_code=resp_status,
+        default_content_type=response_ct,
         require_valid_content_type=kwargs.get("require_valid_content_type", True),
     )
 

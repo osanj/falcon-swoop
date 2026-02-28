@@ -58,6 +58,30 @@ def test_unused_operation_raises_405(
         assert act_allowed_methods == exp_allowed_methods, f"Unexpected allow header for {method}"
 
 
+@pytest.mark.parametrize(
+    "resource_name, exp_op_ids",
+    [
+        ["BasicResource1", {"getSomething", "postSomething"}],
+        ["BasicResource2", {"getCityData", "putCityData", "updateCityData"}],
+        ["BasicResource3", {"getWeather", "addWeatherSample"}],
+        ["BasicResource4", {"getBlob", "getBlobStats", "addBlob", "addBlobStats"}],
+    ],
+)
+def test_openapi_generation(resource_name: str, exp_op_ids: set[str], resource_loader: SimulatedResourceLoader) -> None:
+    sim_res: SimulatedResource = resource_loader.get(resource_name)
+    result = sim_res.generate_openapi(
+        title=sim_res.resource.__class__.__name__,
+        version="0.0.1",
+    )
+    op_ids = set()
+    for path_item in result.spec.paths.values():
+        for name in vars(path_item):
+            v = getattr(path_item, name)
+            if isinstance(v, OpenApiOperation):
+                op_ids.add(v.operation_id)
+    assert op_ids == exp_op_ids
+
+
 def test_missing_query_param_raises_400(resource1: SimulatedResource) -> None:
     resp = resource1.simulate_get()
     assert resp.status_code == 400
@@ -165,25 +189,22 @@ def test_status_code_via_output(resource3: SimulatedResource) -> None:
     assert resp2.status_code == 200
 
 
-@pytest.mark.parametrize(
-    "resource_name, exp_op_ids",
-    [
-        ["BasicResource1", {"getSomething", "postSomething"}],
-        ["BasicResource2", {"getCityData", "putCityData", "updateCityData"}],
-        ["BasicResource3", {"getWeather", "addWeatherSample"}],
-        ["BasicResource4", {"getBlob", "getBlobStats", "addBlob", "addBlobStats"}],
-    ],
-)
-def test_openapi_generation(resource_name: str, exp_op_ids: set[str], resource_loader: SimulatedResourceLoader) -> None:
-    sim_res: SimulatedResource = resource_loader.get(resource_name)
-    result = sim_res.generate_openapi(
-        title=sim_res.resource.__class__.__name__,
-        version="0.0.1",
-    )
-    op_ids = set()
-    for path_item in result.spec.paths.values():
-        for name in vars(path_item):
-            v = getattr(path_item, name)
-            if isinstance(v, OpenApiOperation):
-                op_ids.add(v.operation_id)
-    assert op_ids == exp_op_ids
+def test_retrieve_http_binary(resource4: SimulatedResource) -> None:
+    blob_id = 123
+    path = resource4.format_route(blobId=blob_id)
+    resp = resource4.simulate_get(path=path)
+    exp_content = f"blob{blob_id}".encode("ascii")
+    assert resp.status_code == 200
+    assert resp.content_type == "image/png"
+    assert resp.content == exp_content
+    assert int(resp.headers.get("content-length", 0)) == len(exp_content)
+
+
+def test_retrieve_http_text(resource4: SimulatedResource) -> None:
+    path = resource4.format_route(blobId=1)
+    resp = resource4.simulate_patch(path=path)
+    assert resp.status_code == 200
+    assert resp.content_type == "text/csv"
+    assert resp.encoding == "ISO-8859-1"
+    lines = resp.text.split("\n")
+    assert lines == ["stat;count", "sïzê;12345", "äccessés;123"]

@@ -166,15 +166,15 @@ class ApiBaseResource:
         elif isinstance(payload, BaseModel):
             resp.media = payload.model_dump(mode="json", by_alias=True)
         elif isinstance(payload, HttpBinary):
+            ct = payload.content_type or op.default_content_type
+            if ct is None:
+                ct = "text/plain" if isinstance(payload, HttpText) else "application/octet-stream"
+            if payload.charset is not None:
+                ct = f"{ct}; {payload.charset}"
             payload.bio.seek(io.SEEK_SET, 0)
-            resp.stream = payload.bio
-            resp.content_length = payload.content_type
-            resp.content_type = payload.content_type or "application/octet-stream"
-        elif isinstance(payload, HttpText):
-            payload.tio.seek(io.SEEK_SET, 0)
-            resp.text = payload.tio.read()
-            resp.content_length = payload.content_type
-            resp.content_type = payload.content_type or "text/plain"
+            resp.stream = payload.bio if op.is_sync else payload.as_async_buffer()
+            resp.content_length = payload.content_length
+            resp.content_type = ct
         else:
             raise ValueError(f"Got payload of unsupported type: {type(payload)}")
 
