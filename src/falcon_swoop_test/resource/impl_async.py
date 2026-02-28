@@ -10,8 +10,7 @@ from falcon_swoop import (
     query_param,
     header_param,
     operation_doc,
-    HttpBinary,
-    HttpText,
+    OpAsgiBinary,
     path_param,
 )
 from falcon_swoop_test.resource.common import WeatherLevel, BasicInput, BasicOutput, country_param, city_id_param
@@ -108,41 +107,42 @@ class BasicResource4(ApiBaseResource):
     async def get_blob(
         self,
         blob_id: str = path_param(alias="blobId"),
-    ) -> HttpBinary:
-        return HttpBinary(b"blob" + blob_id.encode())
+    ) -> OpAsgiBinary:
+        return OpAsgiBinary(b"blob" + blob_id.encode())
 
     @operation(method="POST", accept="application/pdf")
     async def add_blob(
         self,
-        blob: HttpBinary,
+        blob: OpAsgiBinary,
         blob_id: str = path_param(alias="blobId"),
     ) -> BasicOutput:
-        data = blob.bio.read()
+        data = await blob.read()
         output = BasicOutput(
             data={
                 "body": data.decode(),
                 "content_length": blob.content_length,
                 "content_type": blob.content_type,
+                "charset": blob.charset,
             }
         )
         return output
 
-    @operation(method="PATCH")
+    @operation(method="PATCH", response_content_type="text/csv")
     async def get_blob_stats(
         self,
         blob_id: str = path_param(alias="blobId"),
-    ) -> HttpText:
-        return HttpText("stat;count\nsïzê;12345\näccessés;123", content_type="text/csv", charset="latin_1")
+    ) -> OpAsgiBinary:
+        return OpAsgiBinary("stat;count\nsïzê;12345\näccessés;123", charset="latin_1")
 
-    @operation(method="PUT")
+    @operation(method="PUT", accept="text/csv")
     async def add_blob_stats(
         self,
-        stats: HttpText,
+        stats: OpAsgiBinary,
         blob_id: str = path_param(alias="blobId"),
     ) -> BasicOutput:
         return BasicOutput(
             data={
-                "body": stats.text(),
+                "body": await stats.text(),
                 "content_length": stats.content_length,
                 "content_type": stats.content_type,
                 "charset": stats.charset,

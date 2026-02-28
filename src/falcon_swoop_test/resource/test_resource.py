@@ -5,9 +5,11 @@ from falcon_swoop_test.resource.util import IMPL_ASYNC, IMPL_SYNC
 
 
 def ensure_line_matches(line_sync: str, line_async: str, convert_def: bool = False) -> None:
+    line_sync = line_sync.replace("OpBinary", "OpAsgiBinary")
     line_sync = line_sync.replace("OpContext", "OpAsgiContext")
     if convert_def:
         line_sync = line_sync.replace("def", "async def")
+    line_async = line_async.replace("await ", "")
     assert line_sync == line_async
 
 

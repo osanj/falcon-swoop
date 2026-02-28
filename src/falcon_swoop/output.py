@@ -4,7 +4,7 @@ from typing import Generic, Iterable, TypeVar
 from pydantic import BaseModel
 
 from falcon_swoop.error import FalconSwoopError
-from falcon_swoop.http_io import BODY_TYPES
+from falcon_swoop.binary import BODY_TYPES
 
 
 T = TypeVar("T", bound=BaseModel | None)

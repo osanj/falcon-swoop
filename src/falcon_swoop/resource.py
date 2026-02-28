@@ -1,5 +1,4 @@
 import collections
-import io
 import warnings
 from typing import Any, Generator, Mapping
 
@@ -9,7 +8,7 @@ from pydantic import BaseModel, ValidationError
 
 from falcon_swoop.context import OpContext, OpAsgiContext
 from falcon_swoop.error import FalconSwoopConfigError, FalconSwoopWarning
-from falcon_swoop.http_io import HttpBinary, HttpText
+from falcon_swoop.binary import OpBinary, OpAsgiBinary
 from falcon_swoop.operation import ATTR_OPERATION, HttpMethod, OpInfo, OpInfoWithSpec, OpFuncParamInput
 from falcon_swoop.output import OpOutput
 from falcon_swoop.route import ApiRoute
@@ -165,13 +164,13 @@ class ApiBaseResource:
             pass
         elif isinstance(payload, BaseModel):
             resp.media = payload.model_dump(mode="json", by_alias=True)
-        elif isinstance(payload, HttpBinary):
+        elif isinstance(payload, (OpBinary, OpAsgiBinary)):
             ct = payload.content_type or op.default_content_type
             if ct is None:
-                ct = "text/plain" if isinstance(payload, HttpText) else "application/octet-stream"
+                ct = "text/plain" if payload.charset is not None else "application/octet-stream"
             if payload.charset is not None:
-                ct = f"{ct}; {payload.charset}"
-            resp.stream = payload.bio if op.is_sync else payload.as_async_buffer()
+                ct = f"{ct}; charset={payload.charset}"
+            resp.stream = payload.rio
             resp.content_length = payload.content_length
             resp.content_type = ct
         else:
@@ -210,7 +209,7 @@ class ApiBaseResource:
                     data = dtype(**req.get_media())
                 kwargs[spec.func_input.name] = data
 
-            if issubclass(dtype, HttpBinary):
+            if issubclass(dtype, OpBinary):
                 kwargs[spec.func_input.name] = dtype(
                     binary=req.bounded_stream,
                     content_length=req.content_length,
@@ -244,13 +243,13 @@ class ApiBaseResource:
                     data = dtype(**media)
                 kwargs[spec.func_input.name] = data
 
-            # if issubclass(dtype, HttpBinary):
-            #     kwargs[spec.func_input.name] = dtype(
-            #         binary=req.bounded_stream,
-            #         content_length=req.content_length,
-            #         content_type=req.content_type,
-            #         charset=None,  # TODO: check
-            #     )
+            if issubclass(dtype, OpAsgiBinary):
+                kwargs[spec.func_input.name] = dtype(
+                    binary=req.bounded_stream,
+                    content_length=req.content_length,
+                    content_type=req.content_type,
+                    charset=None,  # TODO: check
+                )
 
         data_output = await op.func(self, **kwargs)
         self.__finish_operation(op, resp, data_output)

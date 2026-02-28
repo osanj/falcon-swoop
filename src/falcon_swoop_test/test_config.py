@@ -9,6 +9,8 @@ from falcon_swoop import (
     FalconSwoopConfigWarning,
     OpAsgiContext,
     OpContext,
+    OpAsgiBinary,
+    OpBinary,
     operation,
     header_param,
     path_param,
@@ -263,9 +265,45 @@ def test_config_error_for_default_status_code() -> None:
 
         class Resource(ApiBaseResource):
             @operation(
-                method="GET",
+                method="POST",
                 default_status=(status_code, "Something was created"),
                 more_response_docs={status_code: OpResponseDoc("Something else was done")},
             )
-            def post(self) -> None:
+            def add_entry(self) -> None:
                 pass
+
+
+def test_async_binary_input_on_sync_operation() -> None:
+    with pytest.raises(FalconSwoopConfigError, match="Operation is sync, but input type is configured as"):
+
+        class Resource(ApiBaseResource):
+            @operation(method="POST")
+            def post_dummy(self, body: OpAsgiBinary) -> None:
+                pass
+
+
+def test_async_binary_output_on_sync_operation() -> None:
+    with pytest.raises(FalconSwoopConfigError, match="Operation is sync, but return type is configured as"):
+
+        class Resource(ApiBaseResource):
+            @operation(method="GET")
+            def get_dummy(self) -> OpAsgiBinary:
+                return OpAsgiBinary(b"test")
+
+
+def test_binary_input_on_async_operation() -> None:
+    with pytest.raises(FalconSwoopConfigError, match="Operation is async, but input type is configured as"):
+
+        class Resource(ApiBaseResource):
+            @operation(method="POST")
+            async def post_dummy(self, body: OpBinary) -> None:
+                pass
+
+
+def test_binary_output_on_async_operation() -> None:
+    with pytest.raises(FalconSwoopConfigError, match="Operation is async, but return type is configured as"):
+
+        class Resource(ApiBaseResource):
+            @operation(method="GET")
+            async def get_dummy(self) -> OpBinary:
+                return OpBinary(b"test")

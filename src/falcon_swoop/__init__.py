@@ -5,7 +5,7 @@ from falcon_swoop.resource import ApiBaseResource
 from falcon_swoop.openapi.gen import OpenApiGenerator, OpenApiGeneratorResult, OpenApiGeneratorSettings
 from falcon_swoop.operation import operation, operation_doc, OpExample, OpRequestDoc, OpResponseDoc, OpTypeDoc
 from falcon_swoop.output import OpOutput
-from falcon_swoop.http_io import HttpBinary, HttpText
+from falcon_swoop.binary import OpAsgiBinary, OpBinary
 
 __version__ = "0.1.0"
 __all__ = [
@@ -14,8 +14,8 @@ __all__ = [
     "FalconSwoopWarning",
     "FalconSwoopConfigWarning",
     "ApiBaseResource",
-    "HttpBinary",
-    "HttpText",
+    "OpAsgiBinary",
+    "OpBinary",
     "header_param",
     "path_param",
     "query_param",

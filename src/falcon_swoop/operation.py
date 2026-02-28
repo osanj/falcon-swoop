@@ -11,7 +11,7 @@ from pydantic.fields import FieldInfo
 
 from falcon_swoop.context import OpContext, OpAsgiContext
 from falcon_swoop.error import FalconSwoopConfigError, FalconSwoopConfigWarning
-from falcon_swoop.http_io import BODY_TYPES, HttpBinary, HttpText
+from falcon_swoop.binary import BODY_TYPES, OpAsgiBinary, OpBinary
 from falcon_swoop.output import OpOutput
 from falcon_swoop.param import OpParam, OpParamKind, OpParamType
 import falcon_swoop.type_util as type_util
@@ -21,7 +21,7 @@ ATTR_OPERATION = "operation"
 
 
 OpExample = BaseModel | dict[str, Any] | str
-OpType = type[BaseModel] | type[HttpBinary] | type[HttpText] | type[str] | None
+OpType = type[BaseModel] | type[OpBinary] | type[OpAsgiBinary] | type[str] | None
 
 
 @dataclass
@@ -61,7 +61,7 @@ OpResponseDocByHttpCode = dict[int, OpResponseDoc]
 @dataclass
 class OpFuncInput:
     name: str
-    dtype: type[BaseModel] | type[HttpBinary]
+    dtype: type[BaseModel] | type[OpBinary] | type[OpAsgiBinary]
     accept: list[str]
     optional: bool = False
 
@@ -71,23 +71,31 @@ class OpFuncInput:
                 raise FalconSwoopConfigError(f"Configured mime type {a} for accept has invalid format")
         self.accept = [a.lower() for a in self.accept]
 
+    def check_binary_dtype(self, operation_is_sync: bool) -> None:
+        if issubclass(self.dtype, OpBinary) and not operation_is_sync:
+            raise FalconSwoopConfigError(
+                f"Operation is async, but input type is configured as {OpBinary.__name__}, use {OpAsgiBinary.__name__} instead"
+            )
+        if issubclass(self.dtype, OpAsgiBinary) and operation_is_sync:
+            raise FalconSwoopConfigError(
+                f"Operation is sync, but input type is configured as {OpAsgiBinary.__name__}, use {OpBinary.__name__} instead"
+            )
+
     @classmethod
     def ensure_content_type_format_is_ok(cls, mime: str) -> bool:
         return mime.count("/") == 1 and len(mime) >= 3
 
     @classmethod
-    def get_default_accept(cls, object_type: type[BaseModel] | type[HttpBinary] | type[HttpText]) -> str:
-        if issubclass(object_type, HttpBinary):
+    def get_default_accept(cls, object_type: type[BaseModel] | type[OpBinary] | type[OpAsgiBinary]) -> str:
+        if issubclass(object_type, (OpBinary, OpAsgiBinary)):
             return "application/octet-stream"
-        elif issubclass(object_type, HttpText):
-            return "text/plain"
         return "application/json"
 
     @classmethod
     def parse_accept_config(
         cls,
         user_defined_accept: list[str] | None,
-        object_type: type[BaseModel] | type[HttpBinary] | type[HttpText],
+        object_type: type[BaseModel] | type[OpBinary] | type[OpAsgiBinary],
     ) -> list[str]:
         if user_defined_accept is not None and len(user_defined_accept) > 0:
             return user_defined_accept
@@ -156,18 +164,28 @@ class OpFuncParamInput:
 
 @dataclass
 class OpFuncOutputType:
-    dtype: type[BaseModel] | type[HttpBinary] | type[HttpText]
+    dtype: type[BaseModel] | type[OpBinary] | type[OpAsgiBinary]
     content_type: str
 
     @classmethod
     def parse_content_type_config(
         cls,
         user_defined_ct: str | None,
-        object_type: type[BaseModel] | type[HttpBinary] | type[HttpText],
+        object_type: type[BaseModel] | type[OpBinary] | type[OpAsgiBinary],
     ) -> str:
         if user_defined_ct is None:
             return OpFuncInput.get_default_accept(object_type)
         return user_defined_ct
+
+    def check_binary_dtype(self, operation_is_sync: bool) -> None:
+        if issubclass(self.dtype, OpBinary) and not operation_is_sync:
+            raise FalconSwoopConfigError(
+                f"Operation is async, but return type is configured as {OpBinary.__name__}, use {OpAsgiBinary.__name__} instead"
+            )
+        if issubclass(self.dtype, OpAsgiBinary) and operation_is_sync:
+            raise FalconSwoopConfigError(
+                f"Operation is sync, but return type is configured as {OpAsgiBinary.__name__}, use {OpBinary.__name__} instead"
+            )
 
 
 @dataclass
@@ -405,7 +423,7 @@ def inspect_function(
     response_ct: str | None,
 ) -> OpFuncSpec:
     signature = inspect.signature(func)
-    is_async = inspect.iscoroutinefunction(func)
+    is_sync = not inspect.iscoroutinefunction(func)
 
     # --- http request params of various sort
     input_params = signature.parameters.keys() - {"self"}
@@ -415,7 +433,7 @@ def inspect_function(
     path_input, path_params = find_params(signature, input_params, OpParamKind.PATH, op_id)
     input_params.difference_update(header_params | query_params | path_params)
 
-    context_input_name = find_context_input(signature, input_params, is_sync=not is_async)
+    context_input_name = find_context_input(signature, input_params, is_sync=is_sync)
     if context_input_name is not None:
         input_params.discard(context_input_name)
 
@@ -447,6 +465,8 @@ def inspect_function(
             optional=optional,
             accept=OpFuncInput.parse_accept_config(accept, param_type),
         )
+        op_input.check_binary_dtype(is_sync)
+
     elif len(input_params) > 1:
         raise FalconSwoopConfigError(f"More than 1 parameter found that could be http body: {','.join(input_params)}")
 
@@ -475,6 +495,7 @@ def inspect_function(
             dtype=output_candidate,
             content_type=OpFuncOutputType.parse_content_type_config(response_ct, output_candidate),
         )
+        output_type.check_binary_dtype(is_sync)
     op_output = OpFuncOutput(
         output=output_type,
         hinted_wrapper=hinted_wrapper,

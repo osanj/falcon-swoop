@@ -212,11 +212,23 @@ def test_retrieve_http_binary(resource4: SimulatedResource) -> None:
     assert int(resp.headers.get("content-length", 0)) == len(exp_content)
 
 
+def test_send_http_text(resource4: SimulatedResource) -> None:
+    path = resource4.format_route(blobId=1)
+    payload = "stat1;1\nstat2;2\nstat3;3"
+    content_type = "text/csv"
+    resp = resource4.simulate_put(path=path, body=payload, content_type=content_type)
+    assert resp.status_code == 200
+    assert resp.json["data"]["body"] == payload
+    assert resp.json["data"]["content_length"] == len(payload.encode())
+    assert resp.json["data"]["content_type"] == content_type
+    assert resp.json["data"]["charset"] is None
+
+
 def test_retrieve_http_text(resource4: SimulatedResource) -> None:
     path = resource4.format_route(blobId=1)
     resp = resource4.simulate_patch(path=path)
     assert resp.status_code == 200
-    assert resp.content_type == "text/csv"
-    assert resp.encoding == "ISO-8859-1"
+    assert resp.content_type == "text/csv; charset=latin_1"
+    assert resp.encoding == "latin_1"
     lines = resp.text.split("\n")
     assert lines == ["stat;count", "sïzê;12345", "äccessés;123"]

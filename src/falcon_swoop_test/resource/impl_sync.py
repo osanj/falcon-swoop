@@ -10,8 +10,7 @@ from falcon_swoop import (
     query_param,
     header_param,
     operation_doc,
-    HttpBinary,
-    HttpText,
+    OpBinary,
     path_param,
 )
 from falcon_swoop_test.resource.common import WeatherLevel, BasicInput, BasicOutput, country_param, city_id_param
@@ -108,16 +107,16 @@ class BasicResource4(ApiBaseResource):
     def get_blob(
         self,
         blob_id: str = path_param(alias="blobId"),
-    ) -> HttpBinary:
-        return HttpBinary(b"blob" + blob_id.encode())
+    ) -> OpBinary:
+        return OpBinary(b"blob" + blob_id.encode())
 
     @operation(method="POST", accept="application/pdf")
     def add_blob(
         self,
-        blob: HttpBinary,
+        blob: OpBinary,
         blob_id: str = path_param(alias="blobId"),
     ) -> BasicOutput:
-        data = blob.bio.read()
+        data = blob.read()
         output = BasicOutput(
             data={
                 "body": data.decode(),
@@ -128,17 +127,17 @@ class BasicResource4(ApiBaseResource):
         )
         return output
 
-    @operation(method="PATCH")
+    @operation(method="PATCH", response_content_type="text/csv")
     def get_blob_stats(
         self,
         blob_id: str = path_param(alias="blobId"),
-    ) -> HttpText:
-        return HttpText("stat;count\nsïzê;12345\näccessés;123", content_type="text/csv", charset="latin_1")
+    ) -> OpBinary:
+        return OpBinary("stat;count\nsïzê;12345\näccessés;123", charset="latin_1")
 
-    @operation(method="PUT")
+    @operation(method="PUT", accept="text/csv")
     def add_blob_stats(
         self,
-        stats: HttpText,
+        stats: OpBinary,
         blob_id: str = path_param(alias="blobId"),
     ) -> BasicOutput:
         return BasicOutput(

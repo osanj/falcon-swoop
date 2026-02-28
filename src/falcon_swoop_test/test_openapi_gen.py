@@ -20,11 +20,13 @@ from falcon_swoop.openapi.spec import (
     OpenApiReference,
     OpenApiResponse,
     OpenApiRequestBody,
-    OpenApiMimeType,
     OpenApiDocument,
     OpenApiParameterType,
     OpenApiParameter,
 )
+
+CT_JSON = "application/json"
+CT_TEXT = "text/plain"
 
 
 class RecordItemRequest(BaseModel):
@@ -186,7 +188,7 @@ def test_usage_of_model_references(spec: OpenApiDocument) -> None:
     assert get_item is not None
     get_item_200_resp = get_item.responses["200"]
     assert isinstance(get_item_200_resp, OpenApiResponse)
-    get_item_200_resp_content = get_item_200_resp.content[OpenApiMimeType.JSON].schema_
+    get_item_200_resp_content = get_item_200_resp.content[CT_JSON].schema_
     assert isinstance(get_item_200_resp_content, OpenApiReference)
     assert get_item_200_resp_content.ref.startswith(exp_ref)
 
@@ -194,7 +196,7 @@ def test_usage_of_model_references(spec: OpenApiDocument) -> None:
     assert post_item is not None
     post_item_req = post_item.request_body
     assert isinstance(post_item_req, OpenApiRequestBody)
-    post_item_req_content = post_item_req.content[OpenApiMimeType.JSON].schema_
+    post_item_req_content = post_item_req.content[CT_JSON].schema_
     assert isinstance(post_item_req_content, OpenApiReference)
     assert post_item_req_content.ref.startswith(exp_ref)
 
@@ -203,7 +205,7 @@ def test_usage_of_model_references(spec: OpenApiDocument) -> None:
     assert get_items.request_body is None
     get_items_200_resp = get_items.responses["200"]
     assert isinstance(get_items_200_resp, OpenApiResponse)
-    get_item_200_resp_content = get_items_200_resp.content[OpenApiMimeType.JSON].schema_
+    get_item_200_resp_content = get_items_200_resp.content[CT_JSON].schema_
     assert isinstance(get_item_200_resp_content, OpenApiReference)
     assert get_item_200_resp_content.ref.startswith(exp_ref)
 
@@ -229,21 +231,21 @@ def test_spec_from_manual_doc(spec: OpenApiDocument) -> None:
 
     delete_items_req = delete_items.request_body
     assert isinstance(delete_items_req, OpenApiRequestBody)
-    assert delete_items_req.content.keys() == {OpenApiMimeType.JSON}
-    delete_items_req_content = delete_items_req.content[OpenApiMimeType.JSON]
+    assert delete_items_req.content.keys() == {CT_JSON}
+    delete_items_req_content = delete_items_req.content[CT_JSON]
     assert isinstance(delete_items_req_content.schema_, OpenApiReference)
     assert delete_items_req_content.examples.keys() == {"default"}
     assert delete_items.responses.keys() == {"200", "400", "401"}
 
     delete_resp_200 = delete_items.responses["200"]
     assert isinstance(delete_resp_200, OpenApiResponse)
-    assert delete_resp_200.content[OpenApiMimeType.JSON].schema_ is not None
-    assert len(delete_resp_200.content[OpenApiMimeType.JSON].examples) == 0
+    assert delete_resp_200.content[CT_JSON].schema_ is not None
+    assert len(delete_resp_200.content[CT_JSON].examples) == 0
 
     delete_resp_400 = delete_items.responses["400"]
     assert isinstance(delete_resp_400, OpenApiResponse)
-    assert delete_resp_400.content[OpenApiMimeType.TEXT_PLAIN].schema_ == {"type": "string"}
-    assert delete_resp_400.content[OpenApiMimeType.TEXT_PLAIN].examples.keys() == {"default"}
+    assert delete_resp_400.content[CT_TEXT].schema_ == {"type": "string"}
+    assert delete_resp_400.content[CT_TEXT].examples.keys() == {"default"}
 
     delete_resp_401 = delete_items.responses["401"]
     assert isinstance(delete_resp_401, OpenApiResponse)
