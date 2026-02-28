@@ -189,6 +189,18 @@ def test_status_code_via_output(resource3: SimulatedResource) -> None:
     assert resp2.status_code == 200
 
 
+def test_send_http_binary(resource4: SimulatedResource) -> None:
+    path = resource4.format_route(blobId=1)
+    payload = b"roundtrip-test"
+    content_type = "application/pdf"
+    resp = resource4.simulate_post(path=path, body=payload, content_type=content_type)
+    assert resp.status_code == 200
+    assert resp.json["data"]["body"] == payload.decode()
+    assert resp.json["data"]["content_length"] == len(payload)
+    assert resp.json["data"]["content_type"] == content_type
+    assert resp.json["data"]["charset"] is None
+
+
 def test_retrieve_http_binary(resource4: SimulatedResource) -> None:
     blob_id = 123
     path = resource4.format_route(blobId=blob_id)

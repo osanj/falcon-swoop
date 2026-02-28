@@ -61,7 +61,7 @@ OpResponseDocByHttpCode = dict[int, OpResponseDoc]
 @dataclass
 class OpFuncInput:
     name: str
-    dtype: type[BaseModel] | type[HttpBinary] | type[HttpText]
+    dtype: type[BaseModel] | type[HttpBinary]
     accept: list[str]
     optional: bool = False
 

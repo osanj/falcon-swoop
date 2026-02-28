@@ -171,7 +171,6 @@ class ApiBaseResource:
                 ct = "text/plain" if isinstance(payload, HttpText) else "application/octet-stream"
             if payload.charset is not None:
                 ct = f"{ct}; {payload.charset}"
-            payload.bio.seek(io.SEEK_SET, 0)
             resp.stream = payload.bio if op.is_sync else payload.as_async_buffer()
             resp.content_length = payload.content_length
             resp.content_type = ct
@@ -198,21 +197,26 @@ class ApiBaseResource:
     ) -> None:
         op, kwargs = self.__prepare_operation(method=method, req=req, path_params=path_params)
         spec = op.func_spec
+        if spec.context_input_name is not None:
+            kwargs[spec.context_input_name] = OpContext(req, resp)
         if spec.func_input is not None:
-            if spec.func_input.optional:
-                media = req.get_media(default_when_empty=None)
-                if media is None:
-                    data = None
+            dtype = spec.func_input.dtype
+            if issubclass(dtype, BaseModel):
+                if spec.func_input.optional:
+                    media = req.get_media(default_when_empty=None)
+                    data = None if media is None else dtype(**media)
                 else:
-                    data = spec.func_input.dtype(**media)
-            else:
-                # calling req.get_media() again to maintain default falcon behavior for empty body when JSON is expected
-                data = spec.func_input.dtype(**req.get_media())
+                    # calling req.get_media() again to maintain default falcon behavior for empty body when JSON is expected
+                    data = dtype(**req.get_media())
+                kwargs[spec.func_input.name] = data
 
-            if spec.context_input_name is not None:
-                kwargs[spec.context_input_name] = OpContext(req, resp)
-
-            kwargs[spec.func_input.name] = data
+            if issubclass(dtype, HttpBinary):
+                kwargs[spec.func_input.name] = dtype(
+                    binary=req.bounded_stream,
+                    content_length=req.content_length,
+                    content_type=req.content_type,
+                    charset=None,  # TODO: check
+                )
 
         data_output = op.func(self, **kwargs)
         self.__finish_operation(op, resp, data_output)
@@ -226,22 +230,27 @@ class ApiBaseResource:
     ) -> None:
         op, kwargs = self.__prepare_operation(method=method, req=req, path_params=path_params)
         spec = op.func_spec
+        if spec.context_input_name is not None:
+            kwargs[spec.context_input_name] = OpAsgiContext(req, resp)
         if spec.func_input is not None:
-            if spec.func_input.optional:
-                media = await req.get_media(default_when_empty=None)
-                if media is None:
-                    data = None
+            dtype = spec.func_input.dtype
+            if issubclass(dtype, BaseModel):
+                if spec.func_input.optional:
+                    media = await req.get_media(default_when_empty=None)
+                    data = None if media is None else dtype(**media)
                 else:
-                    data = spec.func_input.dtype(**media)
-            else:
-                # calling req.get_media() again to maintain default falcon behavior for empty body when JSON is expected
-                media = await req.get_media()
-                data = spec.func_input.dtype(**media)
+                    # calling req.get_media() again to maintain default falcon behavior for empty body when JSON is expected
+                    media = await req.get_media()
+                    data = dtype(**media)
+                kwargs[spec.func_input.name] = data
 
-            if spec.context_input_name is not None:
-                kwargs[spec.context_input_name] = OpAsgiContext(req, resp)
-
-            kwargs[spec.func_input.name] = data
+            # if issubclass(dtype, HttpBinary):
+            #     kwargs[spec.func_input.name] = dtype(
+            #         binary=req.bounded_stream,
+            #         content_length=req.content_length,
+            #         content_type=req.content_type,
+            #         charset=None,  # TODO: check
+            #     )
 
         data_output = await op.func(self, **kwargs)
         self.__finish_operation(op, resp, data_output)

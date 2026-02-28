@@ -11,7 +11,7 @@ class AsyncBinaryIO:
     def __init__(self, rio: ReadableIO):
         self.rio = rio
 
-    async def read(self, n: int | None = ..., /) -> bytes:
+    async def read(self, n: int | None = None) -> bytes:
         return self.rio.read(n)
 
     async def __aiter__(self) -> AsyncIterator[bytes]:
@@ -27,7 +27,7 @@ class HttpBinary:
 
     def __init__(
         self,
-        binary: BinaryIO | bytes,
+        binary: ReadableIO | bytes,
         content_length: int | None = None,
         content_type: str | None = None,
         charset: str | None = None,
@@ -35,13 +35,19 @@ class HttpBinary:
         if isinstance(binary, bytes):
             content_length = len(binary)
             binary = io.BytesIO(binary)
-        self.bio = binary
+        self.bio: ReadableIO = binary
         self.content_type = content_type
         self.content_length = content_length
         self.charset = charset
 
     def as_async_buffer(self) -> AsyncReadableIO:
         return AsyncBinaryIO(self.bio)
+
+    def text(
+        self, errors: Literal["strict", "ignore", "replace", "backslashreplace", "surrogateescape"] = "strict"
+    ) -> str:
+        raw = self.bio.read()
+        return raw.decode(self.charset or "utf-8", errors=errors)
 
 
 class HttpText(HttpBinary):
@@ -52,12 +58,6 @@ class HttpText(HttpBinary):
             binary=text_bytes,
             content_type=content_type,
         )
-
-    def text(
-        self, errors: Literal["strict", "ignore", "replace", "backslashreplace", "surrogateescape"] = "strict"
-    ) -> str:
-        raw = self.bio.read()
-        return raw.decode(self.charset or "utf-8", errors=errors)
 
 
 # TODO: add Multipart?

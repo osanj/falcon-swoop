@@ -111,7 +111,7 @@ class BasicResource4(ApiBaseResource):
     ) -> HttpBinary:
         return HttpBinary(b"blob" + blob_id.encode())
 
-    @operation(method="POST")
+    @operation(method="POST", accept="application/pdf")
     def add_blob(
         self,
         blob: HttpBinary,
@@ -120,9 +120,10 @@ class BasicResource4(ApiBaseResource):
         data = blob.bio.read()
         output = BasicOutput(
             data={
-                "data": data.decode(),
+                "body": data.decode(),
                 "content_length": blob.content_length,
                 "content_type": blob.content_type,
+                "charset": blob.charset,
             }
         )
         return output
@@ -142,7 +143,7 @@ class BasicResource4(ApiBaseResource):
     ) -> BasicOutput:
         return BasicOutput(
             data={
-                "data": stats.text(),
+                "body": stats.text(),
                 "content_length": stats.content_length,
                 "content_type": stats.content_type,
                 "charset": stats.charset,
