@@ -214,7 +214,6 @@ class ApiBaseResource:
                     binary=req.bounded_stream,
                     content_length=req.content_length,
                     content_type=req.content_type,
-                    charset=None,  # TODO: check
                 )
 
         data_output = op.func(self, **kwargs)
@@ -248,7 +247,6 @@ class ApiBaseResource:
                     binary=req.bounded_stream,
                     content_length=req.content_length,
                     content_type=req.content_type,
-                    charset=None,  # TODO: check
                 )
 
         data_output = await op.func(self, **kwargs)

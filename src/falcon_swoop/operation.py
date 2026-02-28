@@ -108,7 +108,10 @@ class OpFuncInput:
     def can_accept(self, content_type: str | None) -> bool:
         if self.accepts_any:
             return True
-        if content_type is None or not self.ensure_content_type_format_is_ok(content_type):
+        if content_type is None:
+            return False
+        content_type = content_type.split(sep=";", maxsplit=1)[0]
+        if not self.ensure_content_type_format_is_ok(content_type):
             return False
         content_type_ = content_type.lower().strip()
         if content_type_ in self.accept:

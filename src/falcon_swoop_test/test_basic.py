@@ -214,14 +214,16 @@ def test_retrieve_http_binary(resource4: SimulatedResource) -> None:
 
 def test_send_http_text(resource4: SimulatedResource) -> None:
     path = resource4.format_route(blobId=1)
-    payload = "stat1;1\nstat2;2\nstat3;3"
+    encoding = "utf-16"
     content_type = "text/csv"
-    resp = resource4.simulate_put(path=path, body=payload, content_type=content_type)
+    payload = "stat1;1\nstat2;2\nstat3;3"
+    payload_raw = payload.encode(encoding)
+    resp = resource4.simulate_put(path=path, body=payload_raw, content_type=f"{content_type}; charset={encoding}")
     assert resp.status_code == 200
     assert resp.json["data"]["body"] == payload
-    assert resp.json["data"]["content_length"] == len(payload.encode())
+    assert resp.json["data"]["content_length"] == len(payload_raw)
     assert resp.json["data"]["content_type"] == content_type
-    assert resp.json["data"]["charset"] is None
+    assert resp.json["data"]["charset"] == encoding
 
 
 def test_retrieve_http_text(resource4: SimulatedResource) -> None:

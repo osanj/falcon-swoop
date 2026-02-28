@@ -1,9 +1,24 @@
-from typing import AsyncIterator, Literal
+from typing import Any, AsyncIterator, Literal
 import io
 import types
 
 from pydantic import BaseModel
 from falcon.typing import AsyncReadableIO, ReadableIO
+
+
+def normalize_input(
+    binary: Any | bytes | str,
+    content_type: str | None,
+    charset: str | None,
+) -> tuple[Any | bytes, str | None, str | None]:
+    if content_type is not None and "charset=" in content_type and charset is None:
+        charset = content_type.split("charset=")[1].strip()
+        content_type = content_type.split(";")[0]
+    if isinstance(binary, str):
+        if charset is None:
+            charset = "utf-8"
+        binary = binary.encode(encoding=charset)
+    return binary, content_type, charset
 
 
 class OpBinary:
@@ -15,10 +30,7 @@ class OpBinary:
         content_type: str | None = None,
         charset: str | None = None,
     ):
-        if isinstance(binary, str):
-            if charset is None:
-                charset = "utf-8"
-            binary = binary.encode(encoding=charset)
+        binary, content_type, charset = normalize_input(binary, content_type, charset)
         if isinstance(binary, bytes):
             content_length = len(binary)
             binary = io.BytesIO(binary)
@@ -63,10 +75,7 @@ class OpAsgiBinary:
         content_type: str | None = None,
         charset: str | None = None,
     ):
-        if isinstance(binary, str):
-            if charset is None:
-                charset = "utf-8"
-            binary = binary.encode(encoding=charset)
+        binary, content_type, charset = normalize_input(binary, content_type, charset)
         if isinstance(binary, bytes):
             content_length = len(binary)
             binary = AsyncBinaryIO(io.BytesIO(binary))
