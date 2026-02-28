@@ -47,7 +47,7 @@ quick start, walkthrough (operation, operation_doc, generator)
 pip install .  # to install main dependencies
 pip install -e ".[dev]"  # to install main and dev dependencies
 
-black
+black src
 mypy
 pytest -v
 

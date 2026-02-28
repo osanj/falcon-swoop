@@ -5,6 +5,7 @@ from pydantic import BaseModel, create_model
 
 from falcon_swoop import ApiBaseResource
 from falcon_swoop.error import FalconSwoopDocGenerationError
+from falcon_swoop.http_io import HttpBinary, HttpText
 from falcon_swoop.openapi.pydantic_util import model_json_schema
 from falcon_swoop.openapi.spec import (
     JsonSchema,
@@ -180,8 +181,10 @@ class OpenApiGenerator:
     def map_schema(self, op_type: OpType) -> OpenApiReference | JsonSchema | None:
         if op_type is None:
             return None
-        if issubclass(op_type, str):
+        if issubclass(op_type, (str, HttpText)):
             return {"type": "string"}
+        if issubclass(op_type, HttpBinary):
+            return {"type": "string", "format": "binary"}
         return self.__model_collector.get_reference(op_type)
 
     def map_example(self, example: OpExample) -> OpenApiExample:
