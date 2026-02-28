@@ -199,6 +199,14 @@ def test_accept_restricts_content_type(resource4: SimulatedResource) -> None:
     assert resp.status_code == 406
 
 
+def test_etag_is_set_in_response(resource4: SimulatedResource) -> None:
+    blob_id = 999
+    path = resource4.format_route(blobId=blob_id)
+    resp = resource4.simulate_patch(path=path)
+    assert resp.status_code == 200
+    assert resp.headers.get("etag") == f'"etag-{blob_id}"'
+
+
 def test_send_http_binary(resource4: SimulatedResource) -> None:
     path = resource4.format_route(blobId=1)
     payload = b"roundtrip-test"

@@ -131,8 +131,11 @@ class BasicResource4(ApiBaseResource):
     async def get_blob_stats(
         self,
         blob_id: str = path_param(alias="blobId"),
-    ) -> OpAsgiBinary:
-        return OpAsgiBinary("stat;count\nsïzê;12345\näccessés;123", charset="latin_1")
+    ) -> OpOutput[OpAsgiBinary]:
+        return OpOutput(
+            OpAsgiBinary("stat;count\nsïzê;12345\näccessés;123", charset="latin_1"),
+            etag=f"etag-{blob_id}",
+        )
 
     @operation(method="PUT", accept="text/csv")
     async def add_blob_stats(

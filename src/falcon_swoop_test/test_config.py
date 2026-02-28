@@ -291,6 +291,15 @@ def test_config_error_for_async_binary_output_on_sync_operation() -> None:
                 return OpAsgiBinary(b"test")
 
 
+def test_config_error_for_async_binary_output_on_sync_operation_2() -> None:
+    with pytest.raises(FalconSwoopConfigError, match="Operation is sync, but return type is configured as"):
+
+        class Resource(ApiBaseResource):
+            @operation(method="GET")
+            def get_dummy(self) -> OpOutput[OpAsgiBinary]:
+                return OpOutput(OpAsgiBinary(b"test"), headers={"x-dummy": "dummy"})
+
+
 def test_config_error_for_binary_input_on_async_operation() -> None:
     with pytest.raises(FalconSwoopConfigError, match="Operation is async, but input type is configured as"):
 
@@ -307,3 +316,12 @@ def test_config_error_for_binary_output_on_async_operation() -> None:
             @operation(method="GET")
             async def get_dummy(self) -> OpBinary:
                 return OpBinary(b"test")
+
+
+def test_config_error_for_binary_output_on_async_operation_2() -> None:
+    with pytest.raises(FalconSwoopConfigError, match="Operation is async, but return type is configured as"):
+
+        class Resource(ApiBaseResource):
+            @operation(method="GET")
+            async def get_dummy(self) -> OpOutput[OpBinary]:
+                return OpOutput(OpBinary(b"test"), headers={"x-dummy": "dummy"})

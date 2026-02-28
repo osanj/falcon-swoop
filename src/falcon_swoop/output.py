@@ -4,10 +4,10 @@ from typing import Generic, Iterable, TypeVar
 from pydantic import BaseModel
 
 from falcon_swoop.error import FalconSwoopError
-from falcon_swoop.binary import BODY_TYPES
+from falcon_swoop.binary import BODY_TYPES, OpAsgiBinary, OpBinary
 
 
-T = TypeVar("T", bound=BaseModel | None)
+T = TypeVar("T", bound=BaseModel | OpBinary | OpAsgiBinary | None)
 
 
 class OpOutput(Generic[T]):
