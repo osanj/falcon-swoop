@@ -8,7 +8,7 @@ from falcon.testing import Result
 from pydantic import BaseModel
 
 from falcon_swoop import ApiBaseResource, OpenApiGenerator, OpenApiGeneratorResult, OpenApiGeneratorSettings
-from falcon_swoop.operation import HttpMethod
+from falcon_swoop.operation_spec import HttpMethod
 
 
 class SimulatedResource:
