@@ -1,3 +1,5 @@
+# ruff: noqa: D101
+
 class FalconSwoopError(Exception):
     pass
 
