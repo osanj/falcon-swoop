@@ -358,19 +358,64 @@ def inspect_operation(  # noqa: D103
 def operation(method: HttpMethod, **kwargs: Unpack[OperationKwArgs]) -> Callable[..., Any]:
     """Turn a method of a falcon resource into a falcon-swoop API operation.
 
-    Note that this decorator only works on methods of ``ApiBaseResource``.
+    Note that this decorator only works on methods of ``ApiBaseResource``. Works for both sync and async operations.
+    Do *not* use a falcon responder method, such as ``on_post``, directly, instead use a name that describes
+    the operation, e.g. ``add_discussion_comment``. For input and output type hint your pydantic classes.
+
+    For detailed documentation and examples check the project repository. Here is a quick start example::
+
+        from falcon_swoop import ApiBaseResource, operation, path_param
+        from pydantic import BaseModel
+        from typing import Literal
+
+        class NewCommentInput(BaseModel):
+            message: str
+            source: Literal["web", "ios", "android]
+
+        class NewCommentOutput(BaseModel):
+            new_comment_id: int
+
+        class DiscussionCommentResource(ApiBaseResource):
+            def __init__(self) -> None:
+                super().__init__("/discussion/{discussion_id}/comment")
+
+            @operation(method="POST")
+            def add_discussion_comment(
+                comment_data: NewCommentInput,
+                discussion_id: int = path_param(),
+            ) -> NewCommentOutput:
+                # implement operation here
+
 
     :param method: HTTP method required in request
-    :param operation_id: specific openAPI operation id, if not provided the camelCased function name will be used
-    :param deprecated: flag to mark the operation as deprecated in the openapi docs (default: False)
+    :param operation_id: specific OpenAPI operation id (default: the camelCased name of the decorated function)
+    :param summary: optional summary for OpenAPI operation (default: ``None``)
+    :param description: optional description for OpenAPI operation (default: ``None``)
+    :param tags: optional tags for OpenAPI operation (default: ``[]``)
+    :param accept: accepted content types for requests to this operation (default: inferred from input type)
+    :param require_valid_content_type: whether to require clients to send a content type compatible with ``accept``
+        and return 406 if not (default ``True``)
+    :param deprecated: flag to mark the operation as deprecated in the openapi docs (default: ``False``)
+    :param default_status: status code and description for the default case (default: ``(200,"ok")``)
+    :param request_example: request example with title "default" for the default request (default: no example)
+    :param request_examples: request examples by title for the default request
+        (default: ``{}``, example: ``{"scenario_a":example_request...}``)
+    :param request_examples_by_mime: request examples by mime and title
+        (default: ``{}``, example: ``{"application/yaml":{"scenario_a":example_request...},...}``)
+    :param response_content_type: response content type for the default case (default: inferred from return type)
+    :param response_example: response example with title "default" for the default response (default: no example)
+    :param response_examples: response examples by title for the default response
+        (default: ``{}``, example: ``{"scenario_a":example_response...}``)
+    :param more_response_docs: additional rich response documentation, for example other status codes
+        (default: no additional response documentation)
     """
 
-    def wrap(func: Callable[..., Any]) -> Callable[..., Any]:
+    def mark_func(func: Callable[..., Any]) -> Callable[..., Any]:
         info = inspect_operation(method, func, **kwargs)
         setattr(func, ATTR_OPERATION, info)
         return func
 
-    return wrap
+    return mark_func
 
 
 class OperationDocKwArgs(TypedDict):  # noqa: D101
@@ -411,12 +456,45 @@ def inspect_operation_doc(  # noqa: D103
 def operation_doc(**kwargs: Unpack[OperationDocKwArgs]) -> Callable[..., Any]:
     """Add documentation to a method of a falcon resource for inclusion in the OpenAPI spec.
 
-    Note that this decorator only works on methods of ``ApiBaseResource``.
+    Note that this decorator only works on methods of ``ApiBaseResource``. Works for both sync and async operations.
+    Use this on falcon responder methods, such as ``on_post`` that you don't want to or can't decorate with
+    ``@operation``, it allows adding documentation that will be part of the OpenAPI spec.
+
+    For detailed documentation and examples check the project repository. Here is a quick start example::
+
+        from typing import Literal
+        from falcon_swoop import ApiBaseResource, operation_doc, OpRequestDoc, OpTypeDoc
+
+        class ComplexResource(ApiBaseResource):
+            def __init__(self) -> None:
+                super().__init__("/complex/operation")
+
+            @operation_doc(
+                operation_id="complexOperation",
+                tags=["multiMediaUpload"],
+                request_doc=OpRequestDoc(
+                    by_mime={"multipart/form-data": OpTypeDoc.with_default_example(example="raw_bytes_)}
+                )
+                response_docs={
+                   200: OpRequestDoc(by_mime={"plain/text": OpTypeDoc.with_default_example(example="ok")}),
+                   400: OpRequestDoc(by_mime={"plain/text": OpTypeDoc.with_default_example(example="bad_encoding")}),
+                }
+            )
+            def on_get(self, req: falcon.Request, resp: falcon.Response) -> None:
+                # complex operation here
+
+    :param operation_id: specific OpenAPI operation id (default: the camelCased name of the decorated function)
+    :param summary: optional summary for OpenAPI operation (default: ``None``)
+    :param description: optional description for OpenAPI operation (default: ``None``)
+    :param tags: optional tags for OpenAPI operation (default: ``[]``)
+    :param deprecated: flag to mark the operation as deprecated in the openapi docs (default: ``False``)
+    :param request_doc: optional documentation of the request (default: no documentation)
+    :param response_docs: optional documentation of responses by http status codes (default: no documentation)
     """
 
-    def wrap(func: Callable[..., Any]) -> Callable[..., Any]:
+    def mark_func(func: Callable[..., Any]) -> Callable[..., Any]:
         info = inspect_operation_doc(func, **kwargs)
         setattr(func, ATTR_OPERATION, info)
         return func
 
-    return wrap
+    return mark_func

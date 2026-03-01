@@ -11,6 +11,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "griffe==2.0.0",
     "hatchling==1.28.0",
     "mypy==1.19.1",
     "pytest==9.0.2",
