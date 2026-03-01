@@ -15,11 +15,19 @@ from falcon_swoop.route import ApiRoute
 
 
 class ApiBaseResource:
+    """Base class for falcon-swoop API operations.
+
+    To use decorators @operation and @operation_doc subclass this class.
+    For @operation the respective on_<http-method> method will be forwarded to the decorated method.
+    Both @operation and @operation_doc will be used when generating OpenAPI documentation.
+    """
+
     def __init__(self, route: str):
+        """:param route: Relative falcon application route. May contain parameters, e.g.: ``/file/{fileId}/metadata``"""
         self.api_route = ApiRoute(route)
         self.__operation_by_method = self.__setup()
 
-    def api_ops(self) -> Generator[OpInfo, None, None]:
+    def __api_ops(self) -> Generator[OpInfo, None, None]:
         for op in self.__operation_by_method.values():
             yield op
 
