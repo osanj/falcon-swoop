@@ -176,7 +176,7 @@ class OpenApiGenerator:
         self.__model_collector = OpenApiModelCollector()
         self.__param_collector = OpenApiParameterCollector()
 
-    def map_schema(self, op_type: OpType) -> OpenApiReference | JsonSchema | None:
+    def __map_schema(self, op_type: OpType) -> OpenApiReference | JsonSchema | None:
         if op_type is None:
             return None
         if issubclass(op_type, str):
@@ -185,7 +185,7 @@ class OpenApiGenerator:
             return {"type": "string", "format": "binary"}
         return self.__model_collector.get_reference(op_type)
 
-    def map_example(self, example: OpExample) -> OpenApiExample:
+    def __map_example(self, example: OpExample) -> OpenApiExample:
         value: dict[str, Any] | str
         if isinstance(example, BaseModel):
             value = example.model_dump(by_alias=True, mode="json")
@@ -193,32 +193,32 @@ class OpenApiGenerator:
             value = example
         return OpenApiExample(value=value)
 
-    def map_media_type(self, type_doc: OpTypeDoc) -> OpenApiMediaType:
+    def __map_media_type(self, type_doc: OpTypeDoc) -> OpenApiMediaType:
         return OpenApiMediaType(
-            schema_=self.map_schema(type_doc.model_type),
-            examples={name: self.map_example(example) for name, example in type_doc.examples.items()},
+            schema_=self.__map_schema(type_doc.model_type),
+            examples={name: self.__map_example(example) for name, example in type_doc.examples.items()},
         )
 
-    def map_request_doc(self, rd: OpRequestDoc) -> OpenApiRequestBody | None:
+    def __map_request_doc(self, rd: OpRequestDoc) -> OpenApiRequestBody | None:
         content = {}
         for mime, resp_type in rd.by_mime.items():
-            content[mime] = self.map_media_type(resp_type)
+            content[mime] = self.__map_media_type(resp_type)
         return OpenApiRequestBody(required=rd.required, content=content)
 
-    def map_response_doc(self, rd: OpResponseDoc) -> OpenApiResponse:
+    def __map_response_doc(self, rd: OpResponseDoc) -> OpenApiResponse:
         content = {}
         for mime, resp_type in rd.by_mime.items():
-            content[mime] = self.map_media_type(resp_type)
+            content[mime] = self.__map_media_type(resp_type)
         return OpenApiResponse(description=rd.description, content=content)
 
-    def map_operation_info(self, op_info: OpInfo) -> OpenApiOperation:
+    def __map_operation_info(self, op_info: OpInfo) -> OpenApiOperation:
         req_body: OpenApiRequestBody | None = None
         if op_info.request_doc is not None:
-            req_body = self.map_request_doc(op_info.request_doc)
+            req_body = self.__map_request_doc(op_info.request_doc)
 
         responses = {}
         for status_code, rd in op_info.response_docs.items():
-            responses[str(status_code)] = self.map_response_doc(rd)
+            responses[str(status_code)] = self.__map_response_doc(rd)
 
         parameters = []
         if isinstance(op_info, OpInfoWithSpec):
@@ -258,10 +258,10 @@ class OpenApiGenerator:
             responses=responses,
         )
 
-    def map_api_resource(self, resource: ApiBaseResource) -> OpenApiPathItem:
+    def __map_api_resource(self, resource: ApiBaseResource) -> OpenApiPathItem:
         operations: dict[HttpMethod, OpenApiOperation] = {}
         for op_info in resource.api_ops():
-            operations[op_info.method] = self.map_operation_info(op_info)
+            operations[op_info.method] = self.__map_operation_info(op_info)
 
         return OpenApiPathItem(
             **{method.lower(): op for method, op in operations.items()},
@@ -272,7 +272,7 @@ class OpenApiGenerator:
 
         paths: dict[str, OpenApiPathItem] = {}
         for r in self.resources:
-            paths[r.api_route.plain] = self.map_api_resource(r)
+            paths[r.api_route.plain] = self.__map_api_resource(r)
 
         # TODO: security_schemas
         components = OpenApiComponents(

@@ -74,11 +74,13 @@ class OpFuncInput:
     def check_binary_dtype(self, operation_is_sync: bool) -> None:
         if issubclass(self.dtype, OpBinary) and not operation_is_sync:
             raise FalconSwoopConfigError(
-                f"Operation is async, but input type is configured as {OpBinary.__name__}, use {OpAsgiBinary.__name__} instead"
+                f"Operation is async, but input type is configured as {OpBinary.__name__}, "
+                f"use {OpAsgiBinary.__name__} instead"
             )
         if issubclass(self.dtype, OpAsgiBinary) and operation_is_sync:
             raise FalconSwoopConfigError(
-                f"Operation is sync, but input type is configured as {OpAsgiBinary.__name__}, use {OpBinary.__name__} instead"
+                f"Operation is sync, but input type is configured as {OpAsgiBinary.__name__}, "
+                f"use {OpBinary.__name__} instead"
             )
 
     @classmethod
@@ -183,11 +185,13 @@ class OpFuncOutputType:
     def check_binary_dtype(self, operation_is_sync: bool) -> None:
         if issubclass(self.dtype, OpBinary) and not operation_is_sync:
             raise FalconSwoopConfigError(
-                f"Operation is async, but return type is configured as {OpBinary.__name__}, use {OpAsgiBinary.__name__} instead"
+                f"Operation is async, but return type is configured as {OpBinary.__name__}, "
+                f"use {OpAsgiBinary.__name__} instead"
             )
         if issubclass(self.dtype, OpAsgiBinary) and operation_is_sync:
             raise FalconSwoopConfigError(
-                f"Operation is sync, but return type is configured as {OpAsgiBinary.__name__}, use {OpBinary.__name__} instead"
+                f"Operation is sync, but return type is configured as {OpAsgiBinary.__name__}, "
+                f"use {OpBinary.__name__} instead"
             )
 
 
@@ -287,7 +291,8 @@ def find_param_type(
     elif type_util.safe_issubclass(annotation, Enum):
         if not issubclass(annotation, str):
             raise FalconSwoopConfigError(
-                f"{param_error_hint} must be a string enum to be usable, either subclass from str and Enum or use StrEnum"
+                f"{param_error_hint} must be a string enum to be usable, either subclass "
+                f"from str and Enum or use StrEnum"
             )
     elif annotation not in param.allow_types:
         raise FalconSwoopConfigError(

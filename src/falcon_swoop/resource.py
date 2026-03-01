@@ -204,7 +204,8 @@ class ApiBaseResource:
                     media = req.get_media(default_when_empty=None)
                     data = None if media is None else dtype(**media)
                 else:
-                    # calling req.get_media() again to maintain default falcon behavior for empty body when JSON is expected
+                    # calling req.get_media() again to maintain default falcon behavior
+                    # for empty body when JSON is expected
                     data = dtype(**req.get_media())
                 kwargs[spec.func_input.name] = data
 
@@ -236,7 +237,8 @@ class ApiBaseResource:
                     media = await req.get_media(default_when_empty=None)
                     data = None if media is None else dtype(**media)
                 else:
-                    # calling req.get_media() again to maintain default falcon behavior for empty body when JSON is expected
+                    # calling req.get_media() again to maintain default falcon behavior
+                    # for empty body when JSON is expected
                     media = await req.get_media()
                     data = dtype(**media)
                 kwargs[spec.func_input.name] = data

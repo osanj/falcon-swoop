@@ -147,7 +147,8 @@ def test_config_error_for_optional_path_parameter() -> None:
 def test_config_error_for_normal_enum() -> None:
     with pytest.raises(
         FalconSwoopConfigError,
-        match="Query parameter mode must be a string enum to be usable, either subclass from str and Enum or use StrEnum",
+        match="Query parameter mode must be a string enum to be usable, "
+              "either subclass from str and Enum or use StrEnum",
     ):
 
         @unique

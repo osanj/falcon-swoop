@@ -1,3 +1,4 @@
+# ruff: noqa: D100, D101, D102, D103
 from dataclasses import dataclass
 from typing import Any, Literal, Sequence, Union, get_args, get_origin
 import types

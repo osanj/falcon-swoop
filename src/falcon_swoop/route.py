@@ -1,3 +1,4 @@
+# ruff: noqa: D100, D101, D102, D103, D107
 from typing import Any, Sequence
 
 from falcon_swoop.error import FalconSwoopConfigError
