@@ -24,6 +24,7 @@ OpenAPI documentation can also be added manually for old or very complex operati
 - [x] warning that header params are case-insensitive (if name/alias provided that is not entirely upper/lowercase)
 - [ ] warning for pydantic models that declare fields of type bytes
 - [ ] handle missing annotations for input, params, context and return value
+- [ ] check general improvement of config errors: catch and rethrow with function name in @operation?
 - [x] add support for optional input objects
 - [ ] add support for (de)serialization to yaml and other formats
 - [x] add support for "more_response_docs" and way to annotate response with status + mime?
@@ -33,15 +34,15 @@ OpenAPI documentation can also be added manually for old or very complex operati
 - [ ] add simple swagger resource
   - [ ] useful default configs on swagger ui module
   - [ ] is it possible to automatically find all ApiResources from App?
-- [ ] use `falcon._typing.ResponderCallable` and async types or redefine proper callable types
 - [x] make everything work for async app
 - [ ] grid CI pipeline testing combinations of python, falcon and pydantic
 - [ ] make sure snake_case to camelCase works easily (especially for query and path params)
 - [x] remove `OpenApiMimeType`? (seems too restrictive)
 - [x] include `py.typed` in package
-- [ ] rich docstrings on operation, operation_doc and possibly other frequently used symbols
-- [ ] add unit test to make sure doc strings of operation and operation_doc are mostly identical
-- [ ] basic docs on README
+- [ ] proper docs
+  - [ ] rich docstrings on operation, operation_doc and possibly other frequently used symbols
+  - [ ] add unit test to make sure doc strings of operation and operation_doc are mostly identical
+  - [ ] basic docs with examples on README
 
 ### User Guide
 

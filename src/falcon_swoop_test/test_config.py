@@ -326,3 +326,15 @@ def test_config_error_for_binary_output_on_async_operation_2() -> None:
             @operation(method="GET")
             async def get_dummy(self) -> OpOutput[OpBinary]:
                 return OpOutput(OpBinary(b"test"), headers={"x-dummy": "dummy"})
+
+
+def test_config_error_for_decorating_falcon_method() -> None:
+    with pytest.raises(
+        FalconSwoopConfigError,
+        match="The responder method on_get is reserved and cannot be decorated, please use another name.",
+    ):
+
+        class Resource(ApiBaseResource):
+            @operation(method="GET")
+            def on_get(self) -> DummyModel:
+                return DummyModel()

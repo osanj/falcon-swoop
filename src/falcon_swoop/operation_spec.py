@@ -13,6 +13,14 @@ from falcon_swoop.error import FalconSwoopConfigError
 from falcon_swoop.param import OpParamType
 
 HttpMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]  # , "OPTIONS"]
+HttpMethodByFuncName: dict[str, HttpMethod] = {
+    "on_get": "GET",
+    "on_post": "POST",
+    "on_put": "PUT",
+    "on_patch": "PATCH",
+    "on_delete": "DELETE",
+}
+
 
 OpExample = BaseModel | dict[str, Any] | str
 OpType = type[BaseModel] | type[OpBinary] | type[OpAsgiBinary] | type[str] | None

@@ -12,6 +12,7 @@ from falcon_swoop.context import OpAsgiContext, OpContext
 from falcon_swoop.error import FalconSwoopConfigError, FalconSwoopConfigWarning
 from falcon_swoop.operation_spec import (
     HttpMethod,
+    HttpMethodByFuncName,
     OpExample,
     OpFuncInput,
     OpFuncOutput,
@@ -295,6 +296,12 @@ def inspect_operation(  # noqa: D103
     op_id = _get_operation_id_or_default(kwargs.get("operation_id"), func)
     response_ct = kwargs.get("response_content_type")
 
+    if func.__name__ in HttpMethodByFuncName:
+        raise FalconSwoopConfigError(
+            f"The responder method {func.__name__} is reserved and cannot be decorated, please use another name."
+            f"If you want to add documentation to a falcon responder method use @{operation_doc.__name__} instead."
+        )
+
     func_spec = inspect_function(
         func,
         op_id=op_id,
@@ -381,19 +388,11 @@ def inspect_operation_doc(  # noqa: D103
     **kwargs: Unpack[OperationDocKwArgs],
 ) -> OpInfo:
     operation_id = _get_operation_id_or_default(kwargs.get("operation_id"), func)
-    func_name_method_mapping: dict[str, HttpMethod] = {
-        "on_get": "GET",
-        "on_post": "POST",
-        "on_put": "PUT",
-        "on_patch": "PATCH",
-        "on_delete": "DELETE",
-    }
-
-    method = func_name_method_mapping.get(func.__name__)
+    method = HttpMethodByFuncName.get(func.__name__)
     if method is None:
         raise FalconSwoopConfigError(
-            f"The annotated method needs to have one of "
-            f"the falcon request methods: {', '.join(func_name_method_mapping.keys())}"
+            f"The decorated method needs to have one of "
+            f"the falcon request methods: {', '.join(HttpMethodByFuncName.keys())}"
         )
 
     return OpInfo(
