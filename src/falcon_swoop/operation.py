@@ -291,8 +291,7 @@ def find_param_type(
             )
     elif annotation not in param.allow_types:
         raise FalconSwoopConfigError(
-            f"{param_error_hint} has unsupported type annotation {annotation}, "
-            f"possible types are {param.allow_types}"
+            f"{param_error_hint} has unsupported type annotation {annotation}, possible types are {param.allow_types}"
         )
     return annotation, optional
 
@@ -351,9 +350,7 @@ def find_params(
 
     used_param_names = {pi.name for pi in param_inputs}
     param_model_name = f"{operation_id}{kind.lower().capitalize()}Params"
-    param_type = create_model(
-        param_model_name, **{pi.name: (pi.annotation_orig, pi.info) for pi in param_inputs}
-    )  # type: ignore[call-overload]
+    param_type = create_model(param_model_name, **{pi.name: (pi.annotation_orig, pi.info) for pi in param_inputs})  # type: ignore[call-overload]
     func_input = OpFuncParamInput(
         model_type=param_type,
         param_by_name={pi.name: pi for pi in param_inputs},

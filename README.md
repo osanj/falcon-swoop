@@ -53,7 +53,7 @@ quick start, walkthrough (operation, operation_doc, generator)
 pip install .  # to install main dependencies
 pip install -e ".[dev]"  # to install main and dev dependencies
 
-ruff check
+ruff check --fix
 ruff format
 mypy
 pytest -v

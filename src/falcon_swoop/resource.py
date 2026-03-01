@@ -15,7 +15,6 @@ from falcon_swoop.route import ApiRoute
 
 
 class ApiBaseResource:
-
     def __init__(self, route: str):
         self.api_route = ApiRoute(route)
         self.__operation_by_method = self.__setup()
@@ -85,7 +84,7 @@ class ApiBaseResource:
                 continue
             try:
                 item = getattr(self, name)
-            except:
+            except AttributeError:
                 continue
             operation_info = getattr(item, ATTR_OPERATION, None)
             if isinstance(operation_info, OpInfo):

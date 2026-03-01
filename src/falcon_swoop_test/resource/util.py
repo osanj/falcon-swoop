@@ -4,7 +4,7 @@ from typing import Any
 
 import falcon
 import falcon.asgi
-from falcon.testing import TestClient, Result
+from falcon.testing import Result
 from pydantic import BaseModel
 
 from falcon_swoop import ApiBaseResource, OpenApiGenerator, OpenApiGeneratorResult, OpenApiGeneratorSettings
@@ -12,7 +12,6 @@ from falcon_swoop.operation import HttpMethod
 
 
 class SimulatedResource:
-
     def __init__(self, resource: ApiBaseResource, sync: bool = True) -> None:
         self.resource = resource
         app = falcon.App() if sync else falcon.asgi.App()
@@ -90,7 +89,6 @@ IMPL_SYNC = Path(__file__).parent / "impl_sync.py"
 
 
 class SimulatedResourceLoader:
-
     def __init__(self, sync: bool = True) -> None:
         self.sync = sync
 

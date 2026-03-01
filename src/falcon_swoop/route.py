@@ -4,7 +4,6 @@ from falcon_swoop.error import FalconSwoopConfigError
 
 
 class ApiRoute:
-
     def __init__(self, plain: str):
         self.plain = plain.strip().rstrip("/")
         self.parts = plain.strip("/").split("/")

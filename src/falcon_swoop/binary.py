@@ -22,7 +22,6 @@ def normalize_input(
 
 
 class OpBinary:
-
     def __init__(
         self,
         binary: ReadableIO | bytes | str,
@@ -50,7 +49,6 @@ class OpBinary:
 
 
 class AsyncBinaryIO:
-
     def __init__(self, rio: ReadableIO):
         self.rio = rio
 
@@ -67,7 +65,6 @@ class AsyncBinaryIO:
 
 
 class OpAsgiBinary:
-
     def __init__(
         self,
         binary: AsyncReadableIO | bytes | str,

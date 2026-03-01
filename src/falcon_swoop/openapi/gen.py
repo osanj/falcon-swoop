@@ -152,7 +152,6 @@ class OpenApiModelCollector:
 
 
 class OpenApiGenerator:
-
     def __init__(
         self,
         resources: Sequence[ApiBaseResource],

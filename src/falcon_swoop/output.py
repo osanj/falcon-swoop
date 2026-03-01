@@ -11,7 +11,6 @@ T = TypeVar("T", bound=BaseModel | OpBinary | OpAsgiBinary | None)
 
 
 class OpOutput(Generic[T]):
-
     def __init__(
         self,
         payload: T,
