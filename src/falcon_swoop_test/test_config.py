@@ -7,16 +7,16 @@ from falcon_swoop import (
     ApiBaseResource,
     FalconSwoopConfigError,
     FalconSwoopConfigWarning,
-    OpAsgiContext,
-    OpContext,
     OpAsgiBinary,
+    OpAsgiContext,
     OpBinary,
-    operation,
-    header_param,
-    path_param,
-    query_param,
+    OpContext,
     OpOutput,
     OpResponseDoc,
+    header_param,
+    operation,
+    path_param,
+    query_param,
 )
 
 

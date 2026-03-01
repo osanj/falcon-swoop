@@ -1,14 +1,14 @@
 # ruff: noqa: D101, D102, D103, D105
 import inspect
-from dataclasses import dataclass, field as dataclass_field
+from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from typing import Any, Callable, Literal
 
+from pydantic import BaseModel
 from pydantic.fields import FieldInfo
 from typing_extensions import Self
 
-from pydantic import BaseModel
-
-from falcon_swoop.binary import OpBinary, OpAsgiBinary
+from falcon_swoop.binary import OpAsgiBinary, OpBinary
 from falcon_swoop.error import FalconSwoopConfigError
 from falcon_swoop.param import OpParamType
 

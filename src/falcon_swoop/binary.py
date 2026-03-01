@@ -1,9 +1,9 @@
-from typing import Any, AsyncIterator, Literal
 import io
 import types
+from typing import Any, AsyncIterator, Literal
 
-from pydantic import BaseModel
 from falcon.typing import AsyncReadableIO, ReadableIO
+from pydantic import BaseModel
 
 
 def normalize_input(  # noqa: D103

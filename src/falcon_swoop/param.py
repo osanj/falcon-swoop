@@ -1,11 +1,10 @@
 import re
 from enum import Enum, unique
-
 from typing import Any, Sequence, TypedDict
-from typing_extensions import Unpack, NotRequired
 
 from pydantic import Field
 from pydantic.fields import FieldInfo
+from typing_extensions import NotRequired, Unpack
 
 
 @unique

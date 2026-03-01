@@ -44,7 +44,11 @@ plugins = "pydantic.mypy"
 line-length = 120
 
 [tool.ruff.lint]
-select = ["E", "F", "D"]  # adding "D" for pydocstyle
+select = ["E", "F", "D", "I"]
+# E ~ pycodestyle (default)
+# F ~ pyflakes (default)
+# D ~ pydocstyle
+# I ~ isort
 
 [tool.ruff.lint.pydocstyle]
 convention = "pep257"

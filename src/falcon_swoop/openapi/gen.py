@@ -3,10 +3,8 @@ from typing import Any, Final, Sequence
 
 from pydantic import BaseModel, create_model
 
-from falcon_swoop.resource import ApiBaseResource
-from falcon_swoop.operation_spec import OpExample, OpTypeDoc, OpRequestDoc, OpResponseDoc
-from falcon_swoop.error import FalconSwoopDocGenerationError
 from falcon_swoop.binary import OpAsgiBinary, OpBinary
+from falcon_swoop.error import FalconSwoopDocGenerationError
 from falcon_swoop.openapi.pydantic_util import model_json_schema
 from falcon_swoop.openapi.spec import (
     JsonSchema,
@@ -16,14 +14,25 @@ from falcon_swoop.openapi.spec import (
     OpenApiInfo,
     OpenApiMediaType,
     OpenApiOperation,
-    OpenApiPathItem,
     OpenApiParameter,
     OpenApiParameterType,
+    OpenApiPathItem,
     OpenApiReference,
     OpenApiRequestBody,
     OpenApiResponse,
 )
-from falcon_swoop.operation_spec import OpType, OpFuncParamInput, OpInfo, OpInfoWithSpec, HttpMethod
+from falcon_swoop.operation_spec import (
+    HttpMethod,
+    OpExample,
+    OpFuncParamInput,
+    OpInfo,
+    OpInfoWithSpec,
+    OpRequestDoc,
+    OpResponseDoc,
+    OpType,
+    OpTypeDoc,
+)
+from falcon_swoop.resource import ApiBaseResource
 
 
 @dataclass

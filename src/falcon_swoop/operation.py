@@ -3,30 +3,29 @@ import warnings
 from enum import Enum
 from typing import Any, Callable, TypedDict
 
+from pydantic import create_model
 from typing_extensions import NotRequired, Unpack
 
-from pydantic import create_model
-
-from falcon_swoop.context import OpContext, OpAsgiContext
-from falcon_swoop.error import FalconSwoopConfigError, FalconSwoopConfigWarning
+import falcon_swoop.type_util as type_util
 from falcon_swoop.binary import BODY_TYPES
+from falcon_swoop.context import OpAsgiContext, OpContext
+from falcon_swoop.error import FalconSwoopConfigError, FalconSwoopConfigWarning
 from falcon_swoop.operation_spec import (
-    OpResponseDocByHttpCode,
+    HttpMethod,
+    OpExample,
     OpFuncInput,
+    OpFuncOutput,
+    OpFuncOutputType,
     OpFuncParam,
     OpFuncParamInput,
-    OpFuncOutputType,
-    OpFuncOutput,
     OpFuncSpec,
     OpInfo,
     OpInfoWithSpec,
-    HttpMethod,
-    OpExample,
     OpRequestDoc,
+    OpResponseDocByHttpCode,
 )
 from falcon_swoop.output import OpOutput
 from falcon_swoop.param import OpParam, OpParamKind, OpParamType
-import falcon_swoop.type_util as type_util
 
 ATTR_OPERATION = "operation"
 

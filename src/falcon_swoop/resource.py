@@ -6,11 +6,11 @@ import falcon
 import falcon.asgi
 from pydantic import BaseModel, ValidationError
 
-from falcon_swoop.context import OpContext, OpAsgiContext
+from falcon_swoop.binary import OpAsgiBinary, OpBinary
+from falcon_swoop.context import OpAsgiContext, OpContext
 from falcon_swoop.error import FalconSwoopConfigError, FalconSwoopWarning
-from falcon_swoop.binary import OpBinary, OpAsgiBinary
 from falcon_swoop.operation import ATTR_OPERATION
-from falcon_swoop.operation_spec import OpFuncParamInput, OpInfo, OpInfoWithSpec, HttpMethod
+from falcon_swoop.operation_spec import HttpMethod, OpFuncParamInput, OpInfo, OpInfoWithSpec
 from falcon_swoop.output import OpOutput
 from falcon_swoop.route import ApiRoute
 

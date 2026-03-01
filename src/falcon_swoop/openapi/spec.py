@@ -3,9 +3,8 @@ import re
 from enum import Enum, unique
 from typing import Any, Literal
 
-from typing_extensions import Self
-
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, field_validator, model_validator
+from typing_extensions import Self
 
 JsonSchema = dict[str, Any]
 

@@ -4,16 +4,16 @@ import falcon
 
 from falcon_swoop import (
     ApiBaseResource,
+    OpBinary,
     OpContext,
     OpOutput,
-    operation,
-    query_param,
     header_param,
+    operation,
     operation_doc,
-    OpBinary,
     path_param,
+    query_param,
 )
-from falcon_swoop_test.resource.common import WeatherLevel, BasicInput, BasicOutput, country_param, city_id_param
+from falcon_swoop_test.resource.common import BasicInput, BasicOutput, WeatherLevel, city_id_param, country_param
 
 
 class BasicResource1(ApiBaseResource):

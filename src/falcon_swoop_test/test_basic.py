@@ -2,7 +2,7 @@ import pytest
 
 from falcon_swoop.openapi.spec import OpenApiOperation
 from falcon_swoop.operation_spec import HttpMethod
-from falcon_swoop_test.resource.common import WeatherLevel, BasicInput
+from falcon_swoop_test.resource.common import BasicInput, WeatherLevel
 from falcon_swoop_test.resource.util import SimulatedResource, SimulatedResourceLoader
 
 
