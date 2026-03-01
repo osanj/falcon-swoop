@@ -294,7 +294,7 @@ class OpenApiGenerator:
 
     def __map_api_resource(self, resource: ApiBaseResource) -> OpenApiPathItem:
         operations: dict[HttpMethod, OpenApiOperation] = {}
-        for op_info in resource.__api_ops():
+        for op_info in resource._api_ops():
             operations[op_info.method] = self.__map_operation_info(op_info)
 
         return OpenApiPathItem(

@@ -27,7 +27,7 @@ class ApiBaseResource:
         self.api_route = ApiRoute(route)
         self.__operation_by_method = self.__setup()
 
-    def __api_ops(self) -> Generator[OpInfo, None, None]:
+    def _api_ops(self) -> Generator[OpInfo, None, None]:
         for op in self.__operation_by_method.values():
             yield op
 
