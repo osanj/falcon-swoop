@@ -24,7 +24,6 @@ OpenAPI documentation can also be added manually for old or very complex operati
 - [x] warning that header params are case-insensitive (if name/alias provided that is not entirely upper/lowercase)
 - [ ] warning for pydantic models that declare fields of type bytes
 - [ ] handle missing annotations for input, params, context and return value
-- [ ] check general improvement of config errors: catch and rethrow with function name in @operation?
 - [x] add support for optional input objects
 - [ ] add support for (de)serialization to yaml and other formats
 - [x] add support for "more_response_docs" and way to annotate response with status + mime?
@@ -40,8 +39,8 @@ OpenAPI documentation can also be added manually for old or very complex operati
 - [x] remove `OpenApiMimeType`? (seems too restrictive)
 - [x] include `py.typed` in package
 - [ ] proper docs
-  - [ ] rich docstrings on operation, operation_doc and possibly other frequently used symbols
-  - [ ] add unit test to make sure doc strings of operation and operation_doc are mostly identical
+  - [x] rich docstrings on operation, operation_doc and possibly other frequently used symbols
+  - [x] add unit test to make sure doc strings of operation and operation_doc are mostly identical
   - [ ] basic docs with examples on README
 
 ### User Guide

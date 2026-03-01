@@ -298,7 +298,7 @@ def inspect_operation(  # noqa: D103
 
     if func.__name__ in HttpMethodByFuncName:
         raise FalconSwoopConfigError(
-            f"The responder method {func.__name__} is reserved and cannot be decorated, please use another name."
+            f"The responder method {func.__name__} is reserved and cannot be decorated, please use another name. "
             f"If you want to add documentation to a falcon responder method use @{operation_doc.__name__} instead."
         )
 
