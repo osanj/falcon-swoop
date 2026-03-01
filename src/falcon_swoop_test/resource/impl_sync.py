@@ -4,20 +4,19 @@ import falcon
 
 from falcon_swoop import (
     ApiBaseResource,
+    OpBinary,
     OpContext,
     OpOutput,
-    operation,
-    query_param,
     header_param,
+    operation,
     operation_doc,
-    OpBinary,
     path_param,
+    query_param,
 )
-from falcon_swoop_test.resource.common import WeatherLevel, BasicInput, BasicOutput, country_param, city_id_param
+from falcon_swoop_test.resource.common import BasicInput, BasicOutput, WeatherLevel, city_id_param, country_param
 
 
 class BasicResource1(ApiBaseResource):
-
     def __init__(self) -> None:
         super().__init__("/basic")
 
@@ -36,7 +35,6 @@ class BasicResource1(ApiBaseResource):
 
 
 class BasicResource2(ApiBaseResource):
-
     def __init__(self) -> None:
         super().__init__("/country/{country}/city/{cityId}")
 
@@ -73,7 +71,6 @@ class BasicResource2(ApiBaseResource):
 
 
 class BasicResource3(ApiBaseResource):
-
     def __init__(self) -> None:
         super().__init__("/weather")
 
@@ -99,7 +96,6 @@ class BasicResource3(ApiBaseResource):
 
 
 class BasicResource4(ApiBaseResource):
-
     def __init__(self) -> None:
         super().__init__("/blob/{blobId}")
 

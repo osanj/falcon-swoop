@@ -1,22 +1,22 @@
+# ruff: noqa: D400
 import re
 from enum import Enum, unique
 from typing import Any, Literal
 
-from typing_extensions import Self
-
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, field_validator, model_validator
+from typing_extensions import Self
 
 JsonSchema = dict[str, Any]
 
 
-def check_content_types(content_types: list[str]) -> None:
+def _check_content_types(content_types: list[str]) -> None:
     for ct in content_types:
         if not (ct.count("/") == 1 and len(ct) >= 3):
             raise ValueError(f"Invalid content type {ct}")
 
 
 @unique
-class OpenApiParameterType(str, Enum):
+class OpenApiParameterType(str, Enum):  # noqa: D101
     QUERY = "query"
     HEADER = "header"
     PATH = "path"
@@ -24,9 +24,18 @@ class OpenApiParameterType(str, Enum):
 
 
 class OpenApiSpecModel(BaseModel):
+    """Base model for OpenAPI spec representation. Subclasses may be incomplete, check links to spec."""
+
     model_config = ConfigDict(populate_by_name=True)
 
     def to_dict(self, mode: Literal["json", "python"] = "json") -> dict[Any, str]:
+        """Export OpenAPI spec into a dictionary.
+
+        Importantly, all values set to ``None`` will be removed from the output.
+
+        :param mode: corresponding to the argument for model_dump from pydantic, ``json`` will lead to basic datatypes
+            which is good for serialization, with ``python`` string enums may "survive" as enums instead of classes.
+        """
         return self.model_dump(mode=mode, by_alias=True, exclude_none=True)
 
 
@@ -85,7 +94,7 @@ class OpenApiExample(OpenApiSpecModel):
     external_value: str | None = Field(default=None, alias="externalValue")
 
     @model_validator(mode="after")
-    def ensure_values_are_mutually_exclusive(self) -> Self:
+    def _ensure_values_are_mutually_exclusive(self) -> Self:
         if (self.value is None) == (self.external_value is None):
             raise ValueError("Either value or external_value must be specified, they can't be both present or absent")
         return self
@@ -106,8 +115,8 @@ class OpenApiRequestBody(OpenApiSpecModel):
     required: bool = False
 
     @model_validator(mode="after")
-    def ensure_valid_content_types(self) -> Self:
-        check_content_types(list(self.content.keys()))
+    def _ensure_valid_content_types(self) -> Self:
+        _check_content_types(list(self.content.keys()))
         return self
 
 
@@ -118,8 +127,8 @@ class OpenApiResponse(OpenApiSpecModel):
     content: dict[str, OpenApiMediaType]
 
     @model_validator(mode="after")
-    def ensure_valid_content_types(self) -> Self:
-        check_content_types(list(self.content.keys()))
+    def _ensure_valid_content_types(self) -> Self:
+        _check_content_types(list(self.content.keys()))
         return self
 
 

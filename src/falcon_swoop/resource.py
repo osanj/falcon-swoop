@@ -6,21 +6,29 @@ import falcon
 import falcon.asgi
 from pydantic import BaseModel, ValidationError
 
-from falcon_swoop.context import OpContext, OpAsgiContext
+from falcon_swoop.binary import OpAsgiBinary, OpBinary
+from falcon_swoop.context import OpAsgiContext, OpContext
 from falcon_swoop.error import FalconSwoopConfigError, FalconSwoopWarning
-from falcon_swoop.binary import OpBinary, OpAsgiBinary
-from falcon_swoop.operation import ATTR_OPERATION, HttpMethod, OpInfo, OpInfoWithSpec, OpFuncParamInput
+from falcon_swoop.operation import ATTR_OPERATION
+from falcon_swoop.operation_spec import HttpMethod, OpFuncParamInput, OpInfo, OpInfoWithSpec
 from falcon_swoop.output import OpOutput
 from falcon_swoop.route import ApiRoute
 
 
 class ApiBaseResource:
+    """Base class for falcon-swoop API operations.
+
+    To use decorators @operation and @operation_doc subclass this class.
+    For @operation the respective on_<http-method> method will be forwarded to the decorated method.
+    Both @operation and @operation_doc will be used when generating OpenAPI documentation.
+    """
 
     def __init__(self, route: str):
+        """:param route: Relative falcon application route. May contain parameters, e.g.: ``/file/{fileId}/metadata``"""
         self.api_route = ApiRoute(route)
         self.__operation_by_method = self.__setup()
 
-    def api_ops(self) -> Generator[OpInfo, None, None]:
+    def _api_ops(self) -> Generator[OpInfo, None, None]:
         for op in self.__operation_by_method.values():
             yield op
 
@@ -85,7 +93,7 @@ class ApiBaseResource:
                 continue
             try:
                 item = getattr(self, name)
-            except:
+            except AttributeError:
                 continue
             operation_info = getattr(item, ATTR_OPERATION, None)
             if isinstance(operation_info, OpInfo):
@@ -205,7 +213,8 @@ class ApiBaseResource:
                     media = req.get_media(default_when_empty=None)
                     data = None if media is None else dtype(**media)
                 else:
-                    # calling req.get_media() again to maintain default falcon behavior for empty body when JSON is expected
+                    # calling req.get_media() again to maintain default falcon behavior
+                    # for empty body when JSON is expected
                     data = dtype(**req.get_media())
                 kwargs[spec.func_input.name] = data
 
@@ -237,7 +246,8 @@ class ApiBaseResource:
                     media = await req.get_media(default_when_empty=None)
                     data = None if media is None else dtype(**media)
                 else:
-                    # calling req.get_media() again to maintain default falcon behavior for empty body when JSON is expected
+                    # calling req.get_media() again to maintain default falcon behavior
+                    # for empty body when JSON is expected
                     media = await req.get_media()
                     data = dtype(**media)
                 kwargs[spec.func_input.name] = data

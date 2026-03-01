@@ -1,10 +1,10 @@
+# ruff: noqa: D101, D102, D103, D107
 from typing import Any, Sequence
 
 from falcon_swoop.error import FalconSwoopConfigError
 
 
 class ApiRoute:
-
     def __init__(self, plain: str):
         self.plain = plain.strip().rstrip("/")
         self.parts = plain.strip("/").split("/")

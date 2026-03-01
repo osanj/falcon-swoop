@@ -3,7 +3,8 @@
 Easy-to-define typed API resources for [falcon](https://github.com/falconry/falcon) based on [pydantic](https://github.com/pydantic/pydantic) models bringing some FastAPI style
 convenience to your favorite web framework. Automatic OpenAPI doc generation included.
 It is fully opt-in: Use it for all your resources, start attaching typed operations
-to an existing app or just add one single typed resource to your project.
+to an existing app or just add a single typed resource to your project.
+OpenAPI documentation can also be added manually for old or very complex operations that don't fit in this framework.
 
 
 ### Open Items
@@ -31,15 +32,16 @@ to an existing app or just add one single typed resource to your project.
   - [ ] integrates with OpenAPI generation
 - [ ] add simple swagger resource
   - [ ] useful default configs on swagger ui module
-- [ ] use `falcon._typing.ResponderCallable` and async types or redefine proper callable types
+  - [ ] is it possible to automatically find all ApiResources from App?
 - [x] make everything work for async app
 - [ ] grid CI pipeline testing combinations of python, falcon and pydantic
 - [ ] make sure snake_case to camelCase works easily (especially for query and path params)
 - [x] remove `OpenApiMimeType`? (seems too restrictive)
 - [x] include `py.typed` in package
-- [ ] rich docstrings on operation, operation_doc and possibly other frequently used symbols
-- [ ] add unit test to make sure doc strings of operation and operation_doc are mostly identical
-- [ ] basic docs on README
+- [ ] proper docs
+  - [x] rich docstrings on operation, operation_doc and possibly other frequently used symbols
+  - [x] add unit test to make sure doc strings of operation and operation_doc are mostly identical
+  - [ ] basic docs with examples on README
 
 ### User Guide
 
@@ -51,7 +53,8 @@ quick start, walkthrough (operation, operation_doc, generator)
 pip install .  # to install main dependencies
 pip install -e ".[dev]"  # to install main and dev dependencies
 
-black src
+ruff check --fix
+ruff format
 mypy
 pytest -v
 

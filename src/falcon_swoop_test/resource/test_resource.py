@@ -23,7 +23,7 @@ def test_ensure_sync_and_async_equivalence() -> None:
     assert len(lines_async) == len(lines_sync)
 
     pattern_operation_dec = f"\\s+@({operation.__name__}|{operation_doc.__name__})"
-    pattern_falcon_method = f"def\\s+on_(post|get|put|delete|patch|head|options)"
+    pattern_falcon_method = "def\\s+on_(post|get|put|delete|patch|head|options)"
 
     operation_expected = False
     for i in range(len(lines_sync)):

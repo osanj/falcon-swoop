@@ -6,24 +6,24 @@ from pydantic import BaseModel, Field
 
 from falcon_swoop import (
     ApiBaseResource,
-    operation,
-    operation_doc,
-    query_param,
     OpBinary,
+    OpenApiGenerator,
     OpRequestDoc,
     OpResponseDoc,
     OpTypeDoc,
-    OpenApiGenerator,
-    path_param,
     header_param,
+    operation,
+    operation_doc,
+    path_param,
+    query_param,
 )
 from falcon_swoop.openapi.spec import (
-    OpenApiReference,
-    OpenApiResponse,
-    OpenApiRequestBody,
     OpenApiDocument,
-    OpenApiParameterType,
     OpenApiParameter,
+    OpenApiParameterType,
+    OpenApiReference,
+    OpenApiRequestBody,
+    OpenApiResponse,
 )
 
 CT_JSON = "application/json"

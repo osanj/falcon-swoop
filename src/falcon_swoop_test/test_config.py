@@ -7,16 +7,16 @@ from falcon_swoop import (
     ApiBaseResource,
     FalconSwoopConfigError,
     FalconSwoopConfigWarning,
-    OpAsgiContext,
-    OpContext,
     OpAsgiBinary,
+    OpAsgiContext,
     OpBinary,
-    operation,
-    header_param,
-    path_param,
-    query_param,
+    OpContext,
     OpOutput,
     OpResponseDoc,
+    header_param,
+    operation,
+    path_param,
+    query_param,
 )
 
 
@@ -147,7 +147,8 @@ def test_config_error_for_optional_path_parameter() -> None:
 def test_config_error_for_normal_enum() -> None:
     with pytest.raises(
         FalconSwoopConfigError,
-        match="Query parameter mode must be a string enum to be usable, either subclass from str and Enum or use StrEnum",
+        match="Query parameter mode must be a string enum to be usable, "
+        "either subclass from str and Enum or use StrEnum",
     ):
 
         @unique
@@ -325,3 +326,15 @@ def test_config_error_for_binary_output_on_async_operation_2() -> None:
             @operation(method="GET")
             async def get_dummy(self) -> OpOutput[OpBinary]:
                 return OpOutput(OpBinary(b"test"), headers={"x-dummy": "dummy"})
+
+
+def test_config_error_for_decorating_falcon_method() -> None:
+    with pytest.raises(
+        FalconSwoopConfigError,
+        match="The responder method on_get is reserved and cannot be decorated, please use another name.",
+    ):
+
+        class Resource(ApiBaseResource):
+            @operation(method="GET")
+            def on_get(self) -> DummyModel:
+                return DummyModel()

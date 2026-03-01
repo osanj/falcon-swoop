@@ -1,8 +1,9 @@
+# ruff: noqa: D101, D102, D103
 from typing import Any
 
 from pydantic import BaseModel
 from pydantic.config import ConfigDict
-from pydantic.json_schema import GenerateJsonSchema, JsonSchemaValue, DEFAULT_REF_TEMPLATE
+from pydantic.json_schema import DEFAULT_REF_TEMPLATE, GenerateJsonSchema, JsonSchemaValue
 
 
 class GenerateJsonSchemaNoTitles(GenerateJsonSchema):

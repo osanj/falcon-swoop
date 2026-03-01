@@ -1,6 +1,7 @@
+# ruff: noqa: D101, D102, D103
+import types
 from dataclasses import dataclass
 from typing import Any, Literal, Sequence, Union, get_args, get_origin
-import types
 
 
 def safe_issubclass(x: Any, a_tuple: type[Any] | tuple[type[Any], ...]) -> bool:
