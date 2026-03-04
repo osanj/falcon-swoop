@@ -2,17 +2,12 @@
 from typing import Any
 
 from pydantic import BaseModel
-from pydantic.config import ConfigDict
 from pydantic.json_schema import DEFAULT_REF_TEMPLATE, GenerateJsonSchema, JsonSchemaValue
 
 
 class GenerateJsonSchemaNoTitles(GenerateJsonSchema):
     def field_title_should_be_set(self, schema: Any) -> bool:
         return False
-
-    def _update_class_schema(self, json_schema: JsonSchemaValue, cls: type[Any], config: ConfigDict) -> None:
-        super()._update_class_schema(json_schema, cls, config)
-        json_schema.pop("title", None)
 
 
 def model_json_schema(

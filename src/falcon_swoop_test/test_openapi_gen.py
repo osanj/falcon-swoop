@@ -1,4 +1,4 @@
-from typing import Sequence
+from typing import Any, Sequence, Set
 
 import falcon
 import pytest
@@ -368,3 +368,38 @@ def test_doc_gen_for_binary_op_data(spec: OpenApiDocument) -> None:
     assert upload_op.responses["201"].description == "ok"
     assert upload_op.responses["201"].content["text/plain"].schema_ == binary_schema
     assert upload_op.responses["400"].description == "bad_bytes"
+
+
+def get_all_keys(data: dict[str, Any], keys_found: Set[str] | None = None) -> Set[str]:
+    if keys_found is None:
+        keys_found = set()
+
+    for key, value in data.items():
+        keys_found.add(key)
+
+        if isinstance(value, dict):
+            get_all_keys(value, keys_found)
+        elif isinstance(value, list):
+            for item in value:
+                if isinstance(item, dict):
+                    get_all_keys(item, keys_found)
+
+    return keys_found
+
+
+def test_title_generation_config(gen: OpenApiGenerator) -> None:
+    gen.settings.suppress_title_in_param_schemas = True
+    gen.settings.suppress_title_in_object_schemas = False
+    comps1 = gen.generate().spec.components
+    param_schemas_wo_title = {k: p.schema_ for k, p in comps1.parameters.items() if isinstance(p, OpenApiParameter)}
+    schemas_wi_title = comps1.schemas
+    assert "title" not in get_all_keys(param_schemas_wo_title)
+    assert "title" in get_all_keys(schemas_wi_title)
+
+    gen.settings.suppress_title_in_param_schemas = False
+    gen.settings.suppress_title_in_object_schemas = True
+    comps2 = gen.generate().spec.components
+    schemas_wo_title = comps2.schemas
+    param_schemas_wi_title = {k: p.schema_ for k, p in comps2.parameters.items() if isinstance(p, OpenApiParameter)}
+    assert "title" in get_all_keys(param_schemas_wi_title)
+    assert "title" not in get_all_keys(schemas_wo_title)
