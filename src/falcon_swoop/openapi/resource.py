@@ -5,10 +5,10 @@ from falcon_swoop.binary import OpAsgiBinary, OpBinary
 from falcon_swoop.openapi.gen import OpenApiGenerator
 from falcon_swoop.openapi.swagger import OpenApiSwaggerUiSettings, build_swagger_ui_html
 from falcon_swoop.operation import operation
-from falcon_swoop.resource import ApiBaseResource
+from falcon_swoop.resource import SwoopResource
 
 
-class OpenApiBaseResource(ApiBaseResource):
+class OpenApiBaseResource(SwoopResource):
     def __init__(self, generator: OpenApiGenerator, route: str):
         super().__init__(route)
         self.generator = generator
@@ -40,7 +40,7 @@ class OpenApiAsgiResource(OpenApiBaseResource):
         return OpAsgiBinary(self.generate_spec_json_bytes())
 
 
-class OpenApiSwaggerBaseResource(ApiBaseResource):
+class OpenApiSwaggerBaseResource(SwoopResource):
     def __init__(
         self,
         route: str,

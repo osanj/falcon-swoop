@@ -5,12 +5,12 @@ import pytest
 from pydantic import BaseModel, Field
 
 from falcon_swoop import (
-    ApiBaseResource,
     OpBinary,
     OpenApiGenerator,
     OpRequestDoc,
     OpResponseDoc,
     OpTypeDoc,
+    SwoopResource,
     header_param,
     operation,
     operation_doc,
@@ -66,7 +66,7 @@ class DeleteItemsResponse(BaseModel):
     deleted: list[int]
 
 
-class Item(ApiBaseResource):
+class Item(SwoopResource):
     PATH = "/item"
 
     def __init__(self) -> None:
@@ -92,7 +92,7 @@ class Item(ApiBaseResource):
         pass
 
 
-class Items(ApiBaseResource):
+class Items(SwoopResource):
     PATH = "/items"
 
     def __init__(self) -> None:
@@ -137,7 +137,7 @@ class Items(ApiBaseResource):
         pass
 
 
-class Post(ApiBaseResource):
+class Post(SwoopResource):
     PATH = "/posts/{postId}"
 
     def __init__(self) -> None:
@@ -157,7 +157,7 @@ class Post(ApiBaseResource):
         pass
 
 
-class PostMedia(ApiBaseResource):
+class PostMedia(SwoopResource):
     PATH = "/posts/{postId}/media"
 
     def __init__(self) -> None:

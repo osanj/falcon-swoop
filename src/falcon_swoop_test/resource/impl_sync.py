@@ -3,10 +3,10 @@ from typing import Any, Literal
 import falcon
 
 from falcon_swoop import (
-    ApiBaseResource,
     OpBinary,
     OpContext,
     OpOutput,
+    SwoopResource,
     header_param,
     operation,
     operation_doc,
@@ -16,7 +16,7 @@ from falcon_swoop import (
 from falcon_swoop_test.resource.common import BasicInput, BasicOutput, WeatherLevel, city_id_param, country_param
 
 
-class BasicResource1(ApiBaseResource):
+class BasicResource1(SwoopResource):
     def __init__(self) -> None:
         super().__init__("/basic")
 
@@ -34,7 +34,7 @@ class BasicResource1(ApiBaseResource):
         return BasicOutput(data={"param1": basic_input.param1, "content_type": content_type})
 
 
-class BasicResource2(ApiBaseResource):
+class BasicResource2(SwoopResource):
     def __init__(self) -> None:
         super().__init__("/country/{country}/city/{cityId}")
 
@@ -70,7 +70,7 @@ class BasicResource2(ApiBaseResource):
         resp.text = "deleted"
 
 
-class BasicResource3(ApiBaseResource):
+class BasicResource3(SwoopResource):
     def __init__(self) -> None:
         super().__init__("/weather")
 
@@ -95,7 +95,7 @@ class BasicResource3(ApiBaseResource):
         )
 
 
-class BasicResource4(ApiBaseResource):
+class BasicResource4(SwoopResource):
     def __init__(self) -> None:
         super().__init__("/blob/{blobId}")
 

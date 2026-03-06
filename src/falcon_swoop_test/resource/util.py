@@ -7,12 +7,12 @@ import falcon.asgi
 from falcon.testing import Result
 from pydantic import BaseModel
 
-from falcon_swoop import ApiBaseResource, OpenApiGenerator, OpenApiGeneratorResult, OpenApiGeneratorSettings
+from falcon_swoop import OpenApiGenerator, OpenApiGeneratorResult, OpenApiGeneratorSettings, SwoopResource
 from falcon_swoop.operation_spec import HttpMethod
 
 
 class SimulatedResource:
-    def __init__(self, resource: ApiBaseResource, sync: bool = True) -> None:
+    def __init__(self, resource: SwoopResource, sync: bool = True) -> None:
         self.resource = resource
         app = falcon.App() if sync else falcon.asgi.App()
         app.add_route(resource.api_route.plain, resource)

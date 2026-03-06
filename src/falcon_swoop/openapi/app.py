@@ -9,7 +9,7 @@ from falcon_swoop.openapi.resource import (
     OpenApiSwaggerResource,
 )
 from falcon_swoop.openapi.swagger import OpenApiSwaggerUiSettings
-from falcon_swoop.resource import ApiBaseResource
+from falcon_swoop.resource import SwoopResource
 
 
 class SwoopApp:
@@ -92,9 +92,9 @@ class SwoopApp:
                     )
                 )
 
-    def add_route(self, resource: ApiBaseResource) -> None:
+    def add_route(self, resource: SwoopResource) -> None:
         """Add API resource."""
-        if not isinstance(resource, ApiBaseResource):
-            raise ValueError(f"Only resources of type {ApiBaseResource.__name__} can be registered")
+        if not isinstance(resource, SwoopResource):
+            raise ValueError(f"Only resources of type {SwoopResource.__name__} can be registered")
         self.app.add_route(resource.api_route.plain, resource)
         self.generator.add_resource(resource)

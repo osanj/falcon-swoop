@@ -32,7 +32,7 @@ from falcon_swoop.operation_spec import (
     OpType,
     OpTypeDoc,
 )
-from falcon_swoop.resource import ApiBaseResource
+from falcon_swoop.resource import SwoopResource
 
 
 @dataclass
@@ -188,7 +188,7 @@ class OpenApiGenerator:
         version: str,
         summary: str | None = None,
         description: str | None = None,
-        resources: Sequence[ApiBaseResource] = (),
+        resources: Sequence[SwoopResource] = (),
         settings: OpenApiGeneratorSettings | None = None,
     ) -> None:
         """Initialize generator.
@@ -211,11 +211,11 @@ class OpenApiGenerator:
             description=description,
         )
 
-    def add_resource(self, resource: ApiBaseResource) -> None:
+    def add_resource(self, resource: SwoopResource) -> None:
         """Add an api resource to the generator."""
         self.__resources.append(resource)
 
-    def remove_resource(self, resource: ApiBaseResource) -> None:
+    def remove_resource(self, resource: SwoopResource) -> None:
         """Remove an api resource from the generator."""
         self.__resources.remove(resource)
 
@@ -305,7 +305,7 @@ class OpenApiGenerator:
             responses=responses,
         )
 
-    def __map_api_resource(self, resource: ApiBaseResource) -> OpenApiPathItem:
+    def __map_api_resource(self, resource: SwoopResource) -> OpenApiPathItem:
         operations: dict[HttpMethod, OpenApiOperation] = {}
         for op_info in resource._api_ops():
             operations[op_info.method] = self.__map_operation_info(op_info)

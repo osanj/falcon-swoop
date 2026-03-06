@@ -15,7 +15,7 @@ from falcon_swoop.output import OpOutput
 from falcon_swoop.route import ApiRoute
 
 
-class ApiBaseResource:
+class SwoopResource:
     """Base class for falcon-swoop API operations.
 
     To use decorators @operation and @operation_doc subclass this class.

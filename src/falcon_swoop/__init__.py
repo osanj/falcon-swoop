@@ -10,7 +10,7 @@ from falcon_swoop.operation import operation, operation_doc
 from falcon_swoop.operation_spec import OpExample, OpRequestDoc, OpResponseDoc, OpTypeDoc
 from falcon_swoop.output import OpOutput
 from falcon_swoop.param import header_param, path_param, query_param
-from falcon_swoop.resource import ApiBaseResource
+from falcon_swoop.resource import SwoopResource
 
 __version__ = "0.1.0"
 __all__ = [
@@ -19,7 +19,7 @@ __all__ = [
     "FalconSwoopWarning",
     "FalconSwoopConfigWarning",
     "SwoopApp",
-    "ApiBaseResource",
+    "SwoopResource",
     "OpAsgiBinary",
     "OpBinary",
     "header_param",
