@@ -3,7 +3,9 @@
 from falcon_swoop.binary import OpAsgiBinary, OpBinary
 from falcon_swoop.context import OpAsgiContext, OpContext
 from falcon_swoop.error import FalconSwoopConfigError, FalconSwoopConfigWarning, FalconSwoopError, FalconSwoopWarning
+from falcon_swoop.openapi.app import SwoopApp
 from falcon_swoop.openapi.gen import OpenApiGenerator, OpenApiGeneratorResult, OpenApiGeneratorSettings
+from falcon_swoop.openapi.swagger import OpenApiSwaggerUiSettings
 from falcon_swoop.operation import operation, operation_doc
 from falcon_swoop.operation_spec import OpExample, OpRequestDoc, OpResponseDoc, OpTypeDoc
 from falcon_swoop.output import OpOutput
@@ -16,6 +18,7 @@ __all__ = [
     "FalconSwoopConfigError",
     "FalconSwoopWarning",
     "FalconSwoopConfigWarning",
+    "SwoopApp",
     "ApiBaseResource",
     "OpAsgiBinary",
     "OpBinary",
@@ -25,6 +28,7 @@ __all__ = [
     "OpenApiGenerator",
     "OpenApiGeneratorResult",
     "OpenApiGeneratorSettings",
+    "OpenApiSwaggerUiSettings",
     "operation",
     "operation_doc",
     "OpAsgiContext",

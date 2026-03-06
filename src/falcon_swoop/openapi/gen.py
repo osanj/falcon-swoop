@@ -184,23 +184,23 @@ class OpenApiGenerator:
 
     def __init__(
         self,
-        resources: Sequence[ApiBaseResource],
         title: str,
         version: str,
         summary: str | None = None,
         description: str | None = None,
+        resources: Sequence[ApiBaseResource] = (),
         settings: OpenApiGeneratorSettings | None = None,
     ) -> None:
         """Initialize generator.
 
-        :param resources: all api resources that should be considered for the OpenAPI spec
         :param title: title in the OpenAPI spec
         :param version: version in the OpenAPI spec
         :param summary: summary in the OpenAPI spec
         :param description: description in the OpenAPI spec
+        :param resources: initial api resources that should be considered for the OpenAPI spec, more can be added later
         :param settings: optional settings for the generation process
         """
-        self.resources = resources
+        self.__resources = list(resources)
         self.settings = settings or OpenApiGeneratorSettings()
         self.__model_collector = OpenApiModelCollector()
         self.__param_collector = OpenApiParameterCollector()
@@ -210,6 +210,14 @@ class OpenApiGenerator:
             summary=summary,
             description=description,
         )
+
+    def add_resource(self, resource: ApiBaseResource) -> None:
+        """Add an api resource to the generator."""
+        self.__resources.append(resource)
+
+    def remove_resource(self, resource: ApiBaseResource) -> None:
+        """Remove an api resource from the generator."""
+        self.__resources.remove(resource)
 
     def __reset(self) -> None:
         self.__model_collector = OpenApiModelCollector()
@@ -311,7 +319,7 @@ class OpenApiGenerator:
         self.__reset()
 
         paths: dict[str, OpenApiPathItem] = {}
-        for r in self.resources:
+        for r in self.__resources:
             paths[r.api_route.plain] = self.__map_api_resource(r)
 
         # TODO: security_schemas
