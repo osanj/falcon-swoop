@@ -27,7 +27,7 @@ class FieldKwArgs(TypedDict):  # noqa: D101
     le: NotRequired[int | float]
     min_length: NotRequired[int]
     max_length: NotRequired[int]
-    deprecated: NotRequired[bool]
+    deprecated: NotRequired[bool]  # only pydantic >=2.7
     # TODO: add more?
 
 

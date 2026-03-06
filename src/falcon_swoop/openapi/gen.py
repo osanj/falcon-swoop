@@ -72,11 +72,12 @@ class OpenApiParameterCollector:
         schema = model_json_schema(param_input.model_type, suppress_title=suppress_title)
         for prop_name, prop_schema in schema["properties"].items():
             pi = param_input.param_by_input_name[prop_name]
+            deprecated = getattr(pi.info, "deprecated", None) or False  # only available in pydantic >=2.7
             param = OpenApiParameter(
                 name=prop_name,
                 in_=param_type,
                 schema_=prop_schema,
-                deprecated=pi.info.deprecated or False,
+                deprecated=deprecated,
                 description=pi.info.description,
                 required=not pi.optional,
             )
@@ -165,6 +166,10 @@ class OpenApiModelCollector:
             suppress_title=suppress_title,
         )
         schemas: dict[str, JsonSchema] = model_schema.get("$defs", {})
+        # for pydantic <=2.9 titles still show up in the first level schemas
+        if suppress_title:
+            for schema in schemas.values():
+                schema.pop("title", None)
         return schemas
 
     def get_reference(self, model_type: type[BaseModel]) -> OpenApiReference:

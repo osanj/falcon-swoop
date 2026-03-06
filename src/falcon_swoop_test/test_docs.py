@@ -1,6 +1,6 @@
-from typing import Any, Callable, TypedDict
+from typing import Any
 
-import griffe
+import griffe  # type: ignore[import-untyped]
 import pytest
 
 from falcon_swoop import operation, operation_doc
@@ -8,7 +8,7 @@ from falcon_swoop.operation import OperationDocKwArgs, OperationKwArgs
 
 
 def parse_parameters_from_operation_doc_string(
-    op: Callable[[Any], Any], style: griffe.DocstringStyle = "sphinx"
+    op: Any, style: griffe.DocstringStyle = "sphinx"
 ) -> griffe.DocstringSectionParameters:
     doc_string = griffe.Docstring(op.__doc__)
     sections = doc_string.parse(style)
@@ -35,7 +35,11 @@ def test_decorator_parameter_docs_are_in_sync() -> None:
         (operation_doc, OperationDocKwArgs, ()),
     ],
 )
-def test_all_params_documented(func: Callable[[Any], Any], kw_typed_dict: type[TypedDict], ignore: tuple[str]) -> None:
+def test_all_params_documented(
+    func: Any,
+    kw_typed_dict: type[OperationKwArgs] | type[OperationDocKwArgs],
+    ignore: tuple[str],
+) -> None:
     params = parse_parameters_from_operation_doc_string(func)
     param_names = {p.name for p in params.value} - set(ignore)
     exp_param_names = set(kw_typed_dict.__annotations__.keys())
