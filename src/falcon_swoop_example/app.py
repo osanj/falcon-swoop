@@ -13,7 +13,7 @@ def build() -> falcon.App:  # type: ignore
         app,
         title="Notes App",
         version="1.0.0",
-        summary="Public note board that anyone can add notes. Anyone can comment on notes."
+        summary="Public note board that anyone can add notes. Anyone can comment on notes.",
     )
     swoop.add_route(NotesController(note_board))
     swoop.add_route(NoteController(note_board))

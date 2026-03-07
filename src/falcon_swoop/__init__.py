@@ -1,9 +1,9 @@
 """Package for building typed API operations in falcon using pydantic models. Automatic OpenAPI generation included."""
 
+from falcon_swoop.app import SwoopApp
 from falcon_swoop.binary import OpAsgiBinary, OpBinary
 from falcon_swoop.context import OpAsgiContext, OpContext
 from falcon_swoop.error import FalconSwoopConfigError, FalconSwoopConfigWarning, FalconSwoopError, FalconSwoopWarning
-from falcon_swoop.openapi.app import SwoopApp
 from falcon_swoop.openapi.gen import OpenApiGenerator, OpenApiGeneratorResult, OpenApiGeneratorSettings
 from falcon_swoop.openapi.swagger import OpenApiSwaggerUiSettings
 from falcon_swoop.operation import operation, operation_doc
