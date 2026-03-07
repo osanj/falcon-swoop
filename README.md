@@ -6,6 +6,12 @@ It is fully opt-in: Use it for all your resources, start attaching typed operati
 to an existing app or just add a single typed resource to your project.
 OpenAPI documentation can also be added manually for old or very complex operations that don't fit in this framework.
 
+Compatible with Falcon 4.x and Pydantic 2.x.
+
+### Quickstart
+
+...
+
 
 ### Open Items
 
@@ -30,11 +36,11 @@ OpenAPI documentation can also be added manually for old or very complex operati
 - [ ] utility spec class for Multipart form data
   - [ ] makes parsing easy
   - [ ] integrates with OpenAPI generation
-- [ ] add simple swagger resource
-  - [ ] useful default configs on swagger ui module
-  - [ ] is it possible to automatically find all ApiResources from App?
+- [x] add simple swagger resource
+  - [x] useful default configs on swagger ui module
+  - [x] is it possible to automatically find all ApiResources from App?
 - [x] make everything work for async app
-- [ ] grid CI pipeline testing combinations of python, falcon and pydantic
+- [x] grid CI pipeline testing combinations of python, falcon and pydantic
 - [ ] make sure snake_case to camelCase works easily (especially for query and path params)
 - [x] remove `OpenApiMimeType`? (seems too restrictive)
 - [x] include `py.typed` in package

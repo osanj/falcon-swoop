@@ -11,8 +11,8 @@ class OpenApiSwaggerUiSettings:  # noqa: D101
     # https://github.com/swagger-api/swagger-ui/blob/HEAD/docs/usage/configuration.md
     doc_expansion: str = "list"
     operations_sorter: str = "alpha"
-    default_models_expand_depth: int = 2
-    default_model_expand_depth: int = 2
+    default_models_expand_depth: int = 1
+    default_model_expand_depth: int = 1
     other: dict[str, Any] = field(default_factory=dict)
 
 

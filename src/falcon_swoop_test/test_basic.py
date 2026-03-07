@@ -1,6 +1,5 @@
 import pytest
 
-from falcon_swoop import SwoopApp
 from falcon_swoop.openapi.spec import OpenApiDocument, OpenApiOperation
 from falcon_swoop.operation_spec import HttpMethod
 from falcon_swoop_test.resource.common import BasicInput, WeatherLevel
@@ -264,6 +263,8 @@ def test_swoop_app(
     import falcon
     import falcon.asgi
     import falcon.testing
+
+    from falcon_swoop import SwoopApp
 
     title = "Basic App"
     version = "0.1.0"
