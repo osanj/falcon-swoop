@@ -18,6 +18,7 @@ class SimulatedResource:
         app.add_route(resource.api_route.plain, resource)
         self.app = app
         self.client = falcon.testing.TestClient(self.app)
+        self.sync = sync
 
     @property
     def plain_route(self) -> str:

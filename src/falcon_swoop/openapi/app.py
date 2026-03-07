@@ -64,7 +64,7 @@ class SwoopApp:
             description=description,
             settings=generator_settings,
         )
-        is_sync = isinstance(app, falcon.App)
+        is_sync = not isinstance(app, falcon.asgi.App)
         if spec_json_route is not None:
             if is_sync:
                 self.add_route(OpenApiResource(self.generator, spec_json_route))
