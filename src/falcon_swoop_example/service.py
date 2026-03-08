@@ -1,6 +1,6 @@
 import collections
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from pydantic import BaseModel, Field
 
@@ -59,7 +59,7 @@ class PublicNoteBoardService:
         note_record = NoteRecord(
             note_id=note_id,
             note=note,
-            ts_created=datetime.now(UTC),
+            ts_created=datetime.now(timezone.utc),
         )
         self.note_ids.append(note_id)
         self.notes_by_id[note_id] = note_record
@@ -99,7 +99,7 @@ class PublicNoteBoardService:
             note_id=note_id,
             comment_id=comment_id,
             comment=comment,
-            ts_created=datetime.now(UTC),
+            ts_created=datetime.now(timezone.utc),
         )
         self.comments_by_note_id[note_id].append(comment_record)
         return ItemCreated(id=comment_id)
