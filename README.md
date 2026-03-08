@@ -83,14 +83,12 @@ This concludes the basics, keep reading for more details!
 ### Full Example
 
 Check out [src/falcon_swoop_example](src/falcon_swoop_example) for a full example. To run it `gunicorn` needs to be
-installed, then the application can be started with:
+installed, then the application can be started with the commands below. Check the logs on which routes the OpenAPI
+specification and the Swagger UI can be accessed.
 ```
 cd src
 ./falcon_swoop_example.sh
 ```
-
-Afterward the OpenAPI specification and Swagger UI can be accessed at http://localhost:8080/api.json and
-http://localhost:8080/api.html, respectively.
 
 
 ## Development Guide
