@@ -12,6 +12,6 @@ class AdminSecretVerification:
     def __init__(self, secret: str):
         self.secret = secret
 
-    def verify(self, secret: str) -> None:
-        if secret != self.secret:
+    def verify(self, secret: str | None) -> None:
+        if secret is None or secret != self.secret:
             raise falcon.HTTPUnauthorized()
