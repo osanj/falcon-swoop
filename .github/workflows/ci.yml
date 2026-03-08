@@ -38,10 +38,10 @@ jobs:
     if: github.event_name == 'release' && github.event.action == 'published'
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python ${{ python-version-publish }}
+      - name: Set up Python ${{ env.python-version-publish }}
         uses: actions/setup-python@v3
         with:
-          python-version: ${{ python-version-publish }}
+          python-version: ${{ env.python-version-publish }}
       - name: Build
         run: |
           python -m pip install --upgrade pip
