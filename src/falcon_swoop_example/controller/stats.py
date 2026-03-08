@@ -1,9 +1,10 @@
 from datetime import UTC, datetime
 from logging import Logger
 
+import falcon
 from pydantic import BaseModel
 
-from falcon_swoop import OpBinary, OpContext, OpOutput, SwoopResource, operation
+from falcon_swoop import OpBinary, OpContext, OpOutput, SwoopResource, operation, operation_doc
 from falcon_swoop_example.controller.admin import ADMIN_SECRET_HDR, DOC_UNAUTHORIZED, AdminSecretVerification
 from falcon_swoop_example.service import PublicNoteBoardService
 
@@ -67,3 +68,9 @@ class TagStatsController(SwoopResource):
             status_code=200 if len(counts_by_tag) > 0 else 404,
             cache_control="no-store, no-cache, must-revalidate",
         )
+
+    @operation_doc(operation_id="getTags", tags=["admin"], deprecated=True)
+    def on_patch(self, req: falcon.Request, resp: falcon.Response) -> None:
+        # usage of operation_doc here is purely performative to show how old endpoints may be included in the spec
+        resp.text = ",".join(self.note_board_service.note_ids_by_tags.keys())
+        resp.status_code = 200
