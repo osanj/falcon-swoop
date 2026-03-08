@@ -27,7 +27,7 @@ class SwoopApp:
         generator_settings: OpenApiGeneratorSettings | None = None,
         swagger_ui_settings: OpenApiSwaggerUiSettings | None = None,
     ):
-        """Initialize OpenAPI application.
+        """Initialize a falcon-swoop OpenAPI application.
 
         Use this class to wrap your falcon app object and register falcon-swoop API resources. By default,
         resources for serving the spec as JSON and Swagger HTML are added automatically. The original falcon ``app``
