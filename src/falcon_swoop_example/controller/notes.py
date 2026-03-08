@@ -1,6 +1,7 @@
 import falcon
 
 from falcon_swoop import OpResponseDoc, SwoopResource, operation, path_param, query_param
+from falcon_swoop_example.controller.admin import ADMIN_SECRET_HDR, DOC_UNAUTHORIZED, AdminSecretVerification
 from falcon_swoop_example.service import (
     Comment,
     ItemCreated,
@@ -15,7 +16,7 @@ from falcon_swoop_example.service import (
 
 class NotesController(SwoopResource):
     def __init__(self, note_board_service: PublicNoteBoardService) -> None:
-        super().__init__("/notes")
+        super().__init__("/api/notes")
         self.note_board_service = note_board_service
 
     @operation(method="GET", summary="List available notes", tags=["note"])
@@ -32,29 +33,43 @@ class NotesController(SwoopResource):
         return self.note_board_service.add_note(note)
 
 
-no_note_found_doc = OpResponseDoc("No note found for given id")
+DOC_NOTE_NOT_FOUND = OpResponseDoc("No note found for given id")
 
 
 class NoteController(SwoopResource):
-    def __init__(self, note_board_service: PublicNoteBoardService) -> None:
-        super().__init__("/notes/{note_id}")
+    def __init__(self, note_board_service: PublicNoteBoardService, admin_verif: AdminSecretVerification) -> None:
+        super().__init__("/api/notes/{note_id}")
         self.note_board_service = note_board_service
+        self.admin_verif = admin_verif
 
-    @operation(method="GET", summary="Get note for id", tags=["note"], more_response_docs={404: no_note_found_doc})
+    @operation(method="GET", summary="Get note for id", tags=["note"], more_response_docs={404: DOC_NOTE_NOT_FOUND})
     def get_note(self, note_id: str = path_param()) -> NoteRecord:
         try:
             return self.note_board_service.get_note(note_id)
         except ItemNotFoundError:
             raise falcon.HTTPNotFound()
 
+    @operation(
+        method="DELETE",
+        summary="Delete a note by note id",
+        tags=["admin"],
+        more_response_docs={401: DOC_UNAUTHORIZED, 404: DOC_NOTE_NOT_FOUND},
+    )
+    def delete_note(self, note_id: str = path_param(), secret: str | None = ADMIN_SECRET_HDR) -> None:
+        self.admin_verif.verify(secret)
+        try:
+            self.note_board_service.delete_note(note_id)
+        except ItemNotFoundError:
+            raise falcon.HTTPNotFound()
+
 
 class CommentsController(SwoopResource):
     def __init__(self, note_board_service: PublicNoteBoardService) -> None:
-        super().__init__("/notes/{note_id}/comments")
+        super().__init__("/api/notes/{note_id}/comments")
         self.note_board_service = note_board_service
 
     @operation(
-        method="GET", summary="List comments for note", tags=["comment"], more_response_docs={404: no_note_found_doc}
+        method="GET", summary="List comments for note", tags=["comment"], more_response_docs={404: DOC_NOTE_NOT_FOUND}
     )
     def list_note_comments(self, note_id: str = path_param()) -> ListOfCommentRecords:
         try:
@@ -62,6 +77,6 @@ class CommentsController(SwoopResource):
         except ItemNotFoundError:
             raise falcon.HTTPNotFound()
 
-    @operation(method="POST", summary="Add new comment", tags=["comment"], more_response_docs={404: no_note_found_doc})
+    @operation(method="POST", summary="Add new comment", tags=["comment"], more_response_docs={404: DOC_NOTE_NOT_FOUND})
     def add_note_comment(self, comment: Comment, note_id: str = path_param()) -> ItemCreated:
         return self.note_board_service.add_comment(note_id, comment)

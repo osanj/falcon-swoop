@@ -68,6 +68,9 @@ class SwoopApp:
             settings=generator_settings,
             after_generation=generator_hook,
         )
+        self.spec_json_route = spec_json_route
+        self.spec_swagger_route = spec_swagger_route
+
         is_sync = not isinstance(app, falcon.asgi.App)
         if spec_json_route is not None:
             if is_sync:

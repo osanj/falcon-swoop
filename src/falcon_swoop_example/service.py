@@ -71,6 +71,15 @@ class PublicNoteBoardService:
             raise ItemNotFoundError()
         return record
 
+    def delete_note(self, note_id: str) -> None:
+        self.get_note(note_id)  # ensure that note exists
+        self.note_ids.remove(note_id)
+        self.notes_by_id.pop(note_id)
+        self.comments_by_note_id.pop(note_id)
+        for tagged_note_ids in self.note_ids_by_tags.values():
+            if note_id in tagged_note_ids:
+                tagged_note_ids.remove(note_id)
+
     def get_notes(self, count: int, offset: int, tag: str | None) -> ListOfNoteRecords:
         if tag is None:
             note_ids = self.note_ids[offset : offset + count]
@@ -96,6 +105,6 @@ class PublicNoteBoardService:
         return ItemCreated(id=comment_id)
 
     def get_note_comments(self, note_id: str) -> ListOfCommentRecords:
-        note = self.get_note(note_id)
-        comments = self.comments_by_note_id.get(note.note_id, [])
+        self.get_note(note_id)  # ensure that note exists
+        comments = self.comments_by_note_id.get(note_id, [])
         return ListOfCommentRecords(note_id=note_id, records=comments)
