@@ -4,7 +4,7 @@ from typing import Generic, Iterable, TypeVar
 from pydantic import BaseModel
 
 from falcon_swoop.binary import BODY_TYPES, OpAsgiBinary, OpBinary
-from falcon_swoop.error import FalconSwoopError
+from falcon_swoop.error import SwoopError
 
 T = TypeVar("T", bound=BaseModel | OpBinary | OpAsgiBinary | None)
 
@@ -54,5 +54,5 @@ class OpOutput(Generic[T]):
     @payload.setter
     def payload(self, p: T) -> None:
         if not isinstance(p, BODY_TYPES):
-            raise FalconSwoopError(f"Operation output payload needs be one of {BODY_TYPES}, but got {type(p)}")
+            raise SwoopError(f"Operation output payload needs be one of {BODY_TYPES}, but got {type(p)}")
         self.__payload = p

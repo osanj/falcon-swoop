@@ -1,6 +1,6 @@
 import pytest
 
-from falcon_swoop.openapi.spec import OpenApiOperation
+from falcon_swoop.openapi.spec import OpenApiDocument, OpenApiOperation
 from falcon_swoop.operation_spec import HttpMethod
 from falcon_swoop_test.resource.common import BasicInput, WeatherLevel
 from falcon_swoop_test.resource.util import SimulatedResource, SimulatedResourceLoader
@@ -252,3 +252,46 @@ def test_retrieve_http_text(resource4: SimulatedResource) -> None:
     assert resp.encoding == "latin_1"
     lines = resp.text.split("\n")
     assert lines == ["stat;count", "sïzê;12345", "äccessés;123"]
+
+
+def test_swoop_app(
+    resource1: SimulatedResource,
+    resource2: SimulatedResource,
+    resource3: SimulatedResource,
+    resource4: SimulatedResource,
+) -> None:
+    import falcon
+    import falcon.asgi
+    import falcon.testing
+
+    from falcon_swoop import SwoopApp
+
+    title = "Basic App"
+    version = "0.1.0"
+    spec_json_route = "/api/info.json"
+    spec_swagger_route = "/api/info.html"
+
+    app = falcon.App() if resource1.sync else falcon.asgi.App()
+    swoop_app = SwoopApp(
+        app=app,
+        title=title,
+        version=version,
+        spec_json_route=spec_json_route,
+        spec_swagger_route=spec_swagger_route,
+    )
+    for r in [resource1, resource2, resource3, resource4]:
+        swoop_app.add_route(r.resource)
+
+    swoop_client = falcon.testing.TestClient(app)
+
+    resp_swagger = swoop_client.simulate_get(spec_swagger_route)
+    assert resp_swagger.status_code == 200
+    assert resp_swagger.content_type == "text/html; charset=utf-8"
+
+    resp_spec = swoop_client.simulate_get(spec_json_route)
+    assert resp_spec.status_code == 200
+    assert resp_spec.content_type == "application/json"
+    spec = OpenApiDocument(**resp_spec.json)
+    assert spec.info.title == title
+    assert spec.info.version == version
+    assert len(set(spec.paths.keys()) - {spec_json_route, spec_swagger_route}) == 4

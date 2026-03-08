@@ -6,48 +6,92 @@ It is fully opt-in: Use it for all your resources, start attaching typed operati
 to an existing app or just add a single typed resource to your project.
 OpenAPI documentation can also be added manually for old or very complex operations that don't fit in this framework.
 
+Compatible with Falcon 4.x and Pydantic 2.x.
 
-### Open Items
 
-- [x] add params to openapi docgen
-- [ ] add security schemes to openapi docgen
-- [x] add binaryIO and textIO input/output data
-  - [x] keep api resource stateless -> if context is needed it should be declared as input to the method
-  - [x] set up classes for binaryIO (and textIO?)
-  - [x] implement usage of default status for operation and add test
-  - [x] add generic class holding output, where more details can be set
-  - [x] make generic class holding output compatible with None
-  - [x] check "more_response_docs" compatibility, what if default status is defined there again?
-  - [x] check accept header enforcing
-- [x] make certain query and header parameters optional (e.g. `my_query_param: int | None = ...`)
-- [x] allow literal and str-Enum for parameters
-- [x] warning that header params are case-insensitive (if name/alias provided that is not entirely upper/lowercase)
-- [ ] warning for pydantic models that declare fields of type bytes
-- [ ] handle missing annotations for input, params, context and return value
-- [x] add support for optional input objects
-- [ ] add support for (de)serialization to yaml and other formats
-- [x] add support for "more_response_docs" and way to annotate response with status + mime?
-- [ ] utility spec class for Multipart form data
-  - [ ] makes parsing easy
-  - [ ] integrates with OpenAPI generation
-- [ ] add simple swagger resource
-  - [ ] useful default configs on swagger ui module
-  - [ ] is it possible to automatically find all ApiResources from App?
-- [x] make everything work for async app
-- [ ] grid CI pipeline testing combinations of python, falcon and pydantic
-- [ ] make sure snake_case to camelCase works easily (especially for query and path params)
-- [x] remove `OpenApiMimeType`? (seems too restrictive)
-- [x] include `py.typed` in package
-- [ ] proper docs
-  - [x] rich docstrings on operation, operation_doc and possibly other frequently used symbols
-  - [x] add unit test to make sure doc strings of operation and operation_doc are mostly identical
-  - [ ] basic docs with examples on README
+## User Guide
 
-### User Guide
+### Quickstart
 
-quick start, walkthrough (operation, operation_doc, generator)
+To use falcon-swoop follow these steps:
+1. subclass from `SwoopResource`
+2. create a method for your API operation and type-hint it with Pydantic classes for input and output
+3. decorate that method with `@operation`
+4. wrap the falcon `App` with `SwoopApp` and register the swoop resources there
 
-### Development Guide
+
+```python
+import falcon.asgi
+from falcon_swoop import SwoopApp, SwoopResource, operation
+from pydantic import BaseModel, Field
+
+
+def store_message_in_db(author: str, text: str) -> str:
+  # implement storage in database here!
+  return "new_id"
+
+
+class CreateMessageInput(BaseModel):
+  author: str
+  text: str = Field(min_length=20)
+
+  
+class CreateMessageOutput(BaseModel):
+  message_uid: str
+
+  
+class NewMessageController(SwoopResource):
+  def __init__(self):
+    super().__init__(route="/api/message")
+      
+  @operation(method="POST")
+  async def create_message(self, message: CreateMessageInput) -> CreateMessageOutput:
+    message_uid = store_message_in_db(message.author, message.text)
+    return CreateMessageOutput(message_uid=message_uid)
+
+  
+def build_app() -> falcon.asgi.App:
+  app = falcon.asgi.App()
+  swoop = SwoopApp(
+    app,
+    title="Example App",
+    version="0.1.0",
+    spec_json_route="/api/openapi.json",
+    spec_swagger_route="/api/swagger.html",
+  )
+  swoop.add_route(NewMessageController)
+  return app
+```
+
+Once the application is running, new JSON data can be submitted on `POST /message` according to `CreateMessageInput`,
+similarly the application will respond with JSON according to `CreateMessageOutput`. The OpenAPI specification can then
+be accessed as JSON on `/api/openapi.json` or human-readable at `/api/swagger.html`.
+
+This concludes the basics, keep reading for more details!
+
+
+### Tips
+
+* falcon-swoop works for both synchronous and asynchronous falcon applications
+* for operations that are too complicated for falcon-swoop, but should still show up in the OpenAPI specification, the `@operation_doc` decorator can be used to provide manual documentation on conventional falcon responder methods, such as `on_get`, `on_post` and so on
+* use `header_param`, `query_param` and `path_param` to model inputs other than the HTTP body
+* for binary input and output use `OpBinary` (or `OpAsgiBinary` for async operations)
+* for more finegrained response control (status code, headers, ...) return `OpOutput[SomeModel]` or  `OpOutput[OpBinary]`
+* when access to the entire falcon request and response is required, add an input with `OpContext` (or `OpAsgiContext` for async operations)
+
+
+### Full Example
+
+Check out [src/falcon_swoop_example](src/falcon_swoop_example) for a full example. To run it `gunicorn` needs to be
+installed, then the application can be started with the commands below. Check the logs on which routes the OpenAPI
+specification and the Swagger UI can be accessed.
+```
+cd src
+./falcon_swoop_example.sh
+```
+
+
+## Development Guide
 
 ```
 pip install .  # to install main dependencies
@@ -57,6 +101,19 @@ ruff check --fix
 ruff format
 mypy
 pytest -v
+nox  # requires separate install
 
 hatchling build -t wheel
 ```
+
+
+## Open Items
+
+- [ ] add security schemes to openapi docgen
+- [ ] warning for pydantic models that declare fields of type bytes
+- [ ] handle missing annotations for input, params, context and return value
+- [ ] add support for (de)serialization to yaml and other formats
+- [ ] utility spec class for Multipart form data
+  - [ ] makes parsing easy
+  - [ ] integrates with OpenAPI generation
+- [ ] make sure snake_case to camelCase works easily (especially for query and path params)

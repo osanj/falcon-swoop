@@ -1,21 +1,21 @@
 # ruff: noqa: D101
 
 
-class FalconSwoopError(Exception):
+class SwoopError(Exception):
     pass
 
 
-class FalconSwoopConfigError(FalconSwoopError):
+class SwoopConfigError(SwoopError):
     pass
 
 
-class FalconSwoopDocGenerationError(FalconSwoopError):
+class SwoopDocGenerationError(SwoopError):
     pass
 
 
-class FalconSwoopWarning(Warning):
+class SwoopWarning(Warning):
     pass
 
 
-class FalconSwoopConfigWarning(FalconSwoopWarning):
+class SwoopConfigWarning(SwoopWarning):
     pass

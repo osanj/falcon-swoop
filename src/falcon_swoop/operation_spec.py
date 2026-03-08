@@ -9,7 +9,7 @@ from pydantic.fields import FieldInfo
 from typing_extensions import Self
 
 from falcon_swoop.binary import OpAsgiBinary, OpBinary
-from falcon_swoop.error import FalconSwoopConfigError
+from falcon_swoop.error import SwoopConfigError
 from falcon_swoop.param import OpParamType
 
 HttpMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]  # , "OPTIONS"]
@@ -44,7 +44,7 @@ class OpRequestDoc:
 
     def __post_init__(self) -> None:
         if len(self.by_mime) == 0:
-            raise FalconSwoopConfigError("At least one mime request type needs to be specified")
+            raise SwoopConfigError("At least one mime request type needs to be specified")
 
 
 @dataclass
@@ -70,17 +70,17 @@ class OpFuncInput:
     def __post_init__(self) -> None:
         for a in self.accept:
             if not self.ensure_content_type_format_is_ok(a):
-                raise FalconSwoopConfigError(f"Configured mime type {a} for accept has invalid format")
+                raise SwoopConfigError(f"Configured mime type {a} for accept has invalid format")
         self.accept = [a.lower() for a in self.accept]
 
     def check_binary_dtype(self, operation_is_sync: bool) -> None:
         if issubclass(self.dtype, OpBinary) and not operation_is_sync:
-            raise FalconSwoopConfigError(
+            raise SwoopConfigError(
                 f"Operation is async, but input type is configured as {OpBinary.__name__}, "
                 f"use {OpAsgiBinary.__name__} instead"
             )
         if issubclass(self.dtype, OpAsgiBinary) and operation_is_sync:
-            raise FalconSwoopConfigError(
+            raise SwoopConfigError(
                 f"Operation is sync, but input type is configured as {OpAsgiBinary.__name__}, "
                 f"use {OpBinary.__name__} instead"
             )
@@ -186,12 +186,12 @@ class OpFuncOutputType:
 
     def check_binary_dtype(self, operation_is_sync: bool) -> None:
         if issubclass(self.dtype, OpBinary) and not operation_is_sync:
-            raise FalconSwoopConfigError(
+            raise SwoopConfigError(
                 f"Operation is async, but return type is configured as {OpBinary.__name__}, "
                 f"use {OpAsgiBinary.__name__} instead"
             )
         if issubclass(self.dtype, OpAsgiBinary) and operation_is_sync:
-            raise FalconSwoopConfigError(
+            raise SwoopConfigError(
                 f"Operation is sync, but return type is configured as {OpAsgiBinary.__name__}, "
                 f"use {OpBinary.__name__} instead"
             )

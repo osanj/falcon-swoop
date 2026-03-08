@@ -1,10 +1,10 @@
 from dataclasses import dataclass
-from typing import Any, Final, Sequence
+from typing import Any, Callable, Final, Sequence
 
 from pydantic import BaseModel, create_model
 
 from falcon_swoop.binary import OpAsgiBinary, OpBinary
-from falcon_swoop.error import FalconSwoopDocGenerationError
+from falcon_swoop.error import SwoopDocGenerationError
 from falcon_swoop.openapi.pydantic_util import model_json_schema
 from falcon_swoop.openapi.spec import (
     JsonSchema,
@@ -32,7 +32,7 @@ from falcon_swoop.operation_spec import (
     OpType,
     OpTypeDoc,
 )
-from falcon_swoop.resource import ApiBaseResource
+from falcon_swoop.resource import SwoopResource
 
 
 @dataclass
@@ -156,7 +156,7 @@ class OpenApiModelCollector:
         """
         model_name = "SchemaContainerForJsonSchemaGeneration"
         if model_name in [m.__name__ for m in self.__models]:
-            raise FalconSwoopDocGenerationError(f"At least one schema uses a reserved name: {model_name}")
+            raise SwoopDocGenerationError(f"At least one schema uses a reserved name: {model_name}")
         model_params = {f"param{i}": (m, ...) for i, m in enumerate(self.__models)}
         model = create_model(model_name, **model_params)  # type: ignore
         model_schema = model_json_schema(
@@ -179,37 +179,51 @@ class OpenApiModelCollector:
         return OpenApiReference(ref=ref_url)
 
 
+OpenApiGeneratorHook = Callable[[OpenApiDocument], OpenApiDocument]
+
+
 class OpenApiGenerator:
     """Class to generate an OpenAPI spec based objects of type ``ApiBaseResource``."""
 
     def __init__(
         self,
-        resources: Sequence[ApiBaseResource],
         title: str,
         version: str,
         summary: str | None = None,
         description: str | None = None,
+        resources: Sequence[SwoopResource] = (),
         settings: OpenApiGeneratorSettings | None = None,
+        after_generation: OpenApiGeneratorHook | None = None,
     ) -> None:
         """Initialize generator.
 
-        :param resources: all api resources that should be considered for the OpenAPI spec
         :param title: title in the OpenAPI spec
         :param version: version in the OpenAPI spec
         :param summary: summary in the OpenAPI spec
         :param description: description in the OpenAPI spec
+        :param resources: initial api resources that should be considered for the OpenAPI spec, more can be added later
         :param settings: optional settings for the generation process
+        :param after_generation: optional hook to edit the OpenAPI generated specification (just before it is returned)
         """
-        self.resources = resources
+        self.__resources = list(resources)
         self.settings = settings or OpenApiGeneratorSettings()
         self.__model_collector = OpenApiModelCollector()
         self.__param_collector = OpenApiParameterCollector()
+        self.__after_generation = after_generation
         self.info = OpenApiInfo(
             title=title,
             version=version,
             summary=summary,
             description=description,
         )
+
+    def add_resource(self, resource: SwoopResource) -> None:
+        """Add an api resource to the generator."""
+        self.__resources.append(resource)
+
+    def remove_resource(self, resource: SwoopResource) -> None:
+        """Remove an api resource from the generator."""
+        self.__resources.remove(resource)
 
     def __reset(self) -> None:
         self.__model_collector = OpenApiModelCollector()
@@ -297,7 +311,7 @@ class OpenApiGenerator:
             responses=responses,
         )
 
-    def __map_api_resource(self, resource: ApiBaseResource) -> OpenApiPathItem:
+    def __map_api_resource(self, resource: SwoopResource) -> OpenApiPathItem:
         operations: dict[HttpMethod, OpenApiOperation] = {}
         for op_info in resource._api_ops():
             operations[op_info.method] = self.__map_operation_info(op_info)
@@ -311,7 +325,7 @@ class OpenApiGenerator:
         self.__reset()
 
         paths: dict[str, OpenApiPathItem] = {}
-        for r in self.resources:
+        for r in self.__resources:
             paths[r.api_route.plain] = self.__map_api_resource(r)
 
         # TODO: security_schemas
@@ -325,4 +339,6 @@ class OpenApiGenerator:
             paths=paths,
             components=components,
         )
+        if self.__after_generation is not None:
+            spec = self.__after_generation(spec)
         return OpenApiGeneratorResult(spec=spec)

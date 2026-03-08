@@ -37,7 +37,7 @@ python_functions = ["test_*"]
 
 [tool.mypy]
 mypy_path = "src"
-packages = ["falcon_swoop", "falcon_swoop_test"]
+packages = ["falcon_swoop", "falcon_swoop_test", "falcon_swoop_example"]
 strict = true
 plugins = "pydantic.mypy"
 
@@ -56,5 +56,6 @@ convention = "pep257"
 
 [tool.ruff.lint.per-file-ignores]
 "noxfile.py" = ["D"]
+"src/falcon_swoop_example/**/*.py" = ["D"]  # ignore example
 "src/falcon_swoop_test/**/*.py" = ["D"]  # ignore tests
 "src/**/*.py" = ["D100"]  # ignore module description
