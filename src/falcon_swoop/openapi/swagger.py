@@ -13,6 +13,8 @@ class OpenApiSwaggerUiSettings:  # noqa: D101
     operations_sorter: str = "alpha"
     default_models_expand_depth: int = 1
     default_model_expand_depth: int = 1
+    display_operation_id: bool = True
+
     other: dict[str, Any] = field(default_factory=dict)
 
 
@@ -41,6 +43,7 @@ def build_swagger_ui_html(
             "operationsSorter": settings.operations_sorter,
             "defaultModelsExpandDepth": settings.default_models_expand_depth,
             "defaultModelExpandDepth": settings.default_model_expand_depth,
+            "displayOperationId": settings.display_operation_id,
         }
     )
 
