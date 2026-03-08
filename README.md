@@ -17,7 +17,7 @@ To use falcon-swoop follow these steps:
 1. subclass from `SwoopResource`
 2. create a method for your API operation and type-hint it with Pydantic classes for input and output
 3. decorate that method with `@operation`
-4. wrap the falcon `App` with `SwoopApplication` and register the swoop resources there
+4. wrap the falcon `App` with `SwoopApp` and register the swoop resources there
 
 
 ```python
@@ -42,8 +42,7 @@ class CreateMessageOutput(BaseModel):
   
 class NewMessageController(SwoopResource):
   def __init__(self):
-    super().__init__(route="/message")
-
+    super().__init__(route="/api/message")
       
   @operation(method="POST")
   async def create_message(self, message: CreateMessageInput) -> CreateMessageOutput:
@@ -53,13 +52,20 @@ class NewMessageController(SwoopResource):
   
 def build_app() -> falcon.asgi.App:
   app = falcon.asgi.App()
-  swoop = SwoopApp(app, title="Example App", version="0.1.0")
+  swoop = SwoopApp(
+    app,
+    title="Example App",
+    version="0.1.0",
+    spec_json_route="/api/openapi.json",
+    spec_swagger_route="/api/swagger.html",
+  )
   swoop.add_route(NewMessageController)
   return app
 ```
 
 Once the application is running, new JSON data can be submitted on `POST /message` according to `CreateMessageInput`,
-similarly the application will respond with JSON according to `CreateMessageOutput`.
+similarly the application will respond with JSON according to `CreateMessageOutput`. The OpenAPI specification can then
+be accessed as JSON on `/api/openapi.json` or human-readable at `/api/swagger.html`.
 
 This concludes the basics, keep reading for more details!
 
@@ -83,7 +89,7 @@ cd src
 ./falcon_swoop_example.sh
 ```
 
-Afteward the OpenAPI specification and Swagger UI can be accessed at http://localhost:8080/api.json and
+Afterward the OpenAPI specification and Swagger UI can be accessed at http://localhost:8080/api.json and
 http://localhost:8080/api.html, respectively.
 
 
