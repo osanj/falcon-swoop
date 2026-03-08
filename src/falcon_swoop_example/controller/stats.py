@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from logging import Logger
 
 import falcon
@@ -41,7 +41,9 @@ class TagStatsController(SwoopResource):
 
         # usage of the context class here is purely performative to show how the raw falcon data can be accessed
         user_agent = context.req.headers.get("user-agent")
-        self.logger.info(f"{self.api_route.plain} accessed at={datetime.now(UTC).isoformat()} user-agent={user_agent}")
+        self.logger.info(
+            f"{self.api_route.plain} accessed at={datetime.now(timezone.utc).isoformat()} user-agent={user_agent}"
+        )
 
         counts_by_tag: dict[str, int] = {}
         if parameters.after is None and parameters.before is None:
