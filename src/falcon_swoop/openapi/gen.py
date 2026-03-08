@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Final, Sequence
+from typing import Any, Callable, Final, Sequence
 
 from pydantic import BaseModel, create_model
 
@@ -179,6 +179,9 @@ class OpenApiModelCollector:
         return OpenApiReference(ref=ref_url)
 
 
+OpenApiGeneratorHook = Callable[[OpenApiDocument], OpenApiDocument]
+
+
 class OpenApiGenerator:
     """Class to generate an OpenAPI spec based objects of type ``ApiBaseResource``."""
 
@@ -190,6 +193,7 @@ class OpenApiGenerator:
         description: str | None = None,
         resources: Sequence[SwoopResource] = (),
         settings: OpenApiGeneratorSettings | None = None,
+        after_generation: OpenApiGeneratorHook | None = None,
     ) -> None:
         """Initialize generator.
 
@@ -199,11 +203,13 @@ class OpenApiGenerator:
         :param description: description in the OpenAPI spec
         :param resources: initial api resources that should be considered for the OpenAPI spec, more can be added later
         :param settings: optional settings for the generation process
+        :param after_generation: optional hook to edit the OpenAPI generated specification (just before it is returned)
         """
         self.__resources = list(resources)
         self.settings = settings or OpenApiGeneratorSettings()
         self.__model_collector = OpenApiModelCollector()
         self.__param_collector = OpenApiParameterCollector()
+        self.__after_generation = after_generation
         self.info = OpenApiInfo(
             title=title,
             version=version,
@@ -333,4 +339,6 @@ class OpenApiGenerator:
             paths=paths,
             components=components,
         )
+        if self.__after_generation is not None:
+            spec = self.__after_generation(spec)
         return OpenApiGeneratorResult(spec=spec)

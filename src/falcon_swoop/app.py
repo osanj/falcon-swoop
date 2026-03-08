@@ -1,7 +1,7 @@
 import falcon
 import falcon.asgi
 
-from falcon_swoop.openapi.gen import OpenApiGenerator, OpenApiGeneratorSettings
+from falcon_swoop.openapi.gen import OpenApiGenerator, OpenApiGeneratorHook, OpenApiGeneratorSettings
 from falcon_swoop.openapi.resource import (
     OpenApiAsgiResource,
     OpenApiResource,
@@ -25,6 +25,7 @@ class SwoopApp:
         spec_json_route: str | None = "/api.json",
         spec_swagger_route: str | None = "/api.html",
         generator_settings: OpenApiGeneratorSettings | None = None,
+        generator_hook: OpenApiGeneratorHook | None = None,
         swagger_ui_settings: OpenApiSwaggerUiSettings | None = None,
     ):
         """Initialize a falcon-swoop OpenAPI application.
@@ -54,6 +55,8 @@ class SwoopApp:
         :param spec_json_route: route where the OpenAPI spec shall be served, use ``None`` to deactivate
         :param spec_swagger_route: route where the OpenAPI swagger shall be served, use ``None`` to deactivate
         :param generator_settings: optional settings for the generation of the OpenAPI specification
+        :param generator_hook: optional hook to edit the OpenAPI generated specification before it is used by
+            the endpoint serving the spec as JSON, useful to add things that falcon-swoop doesn't generate
         :param swagger_ui_settings: optional settings for the swagger UI rendering of the OpenAPI specification
         """
         self.app = app
@@ -63,6 +66,7 @@ class SwoopApp:
             summary=summary,
             description=description,
             settings=generator_settings,
+            after_generation=generator_hook,
         )
         is_sync = not isinstance(app, falcon.asgi.App)
         if spec_json_route is not None:
