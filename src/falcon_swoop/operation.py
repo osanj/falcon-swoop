@@ -324,7 +324,11 @@ def inspect_operation(  # noqa: D103
             resp_desc = desc
         case _:
             raise ValueError("Could not match default status input")
-    response_doc = func_spec.func_output.to_doc(description=resp_desc)
+    response_doc = func_spec.func_output.to_doc(
+        description=resp_desc,
+        example=kwargs.get("response_example"),
+        examples=kwargs.get("response_examples"),
+    )
     response_docs = {resp_status: response_doc}
     more_response_docs = kwargs.get("more_response_docs", {})
     if resp_status in more_response_docs:
