@@ -4,7 +4,7 @@ from typing import Any, Final, Sequence
 from pydantic import BaseModel, create_model
 
 from falcon_swoop.binary import OpAsgiBinary, OpBinary
-from falcon_swoop.error import FalconSwoopDocGenerationError
+from falcon_swoop.error import SwoopDocGenerationError
 from falcon_swoop.openapi.pydantic_util import model_json_schema
 from falcon_swoop.openapi.spec import (
     JsonSchema,
@@ -156,7 +156,7 @@ class OpenApiModelCollector:
         """
         model_name = "SchemaContainerForJsonSchemaGeneration"
         if model_name in [m.__name__ for m in self.__models]:
-            raise FalconSwoopDocGenerationError(f"At least one schema uses a reserved name: {model_name}")
+            raise SwoopDocGenerationError(f"At least one schema uses a reserved name: {model_name}")
         model_params = {f"param{i}": (m, ...) for i, m in enumerate(self.__models)}
         model = create_model(model_name, **model_params)  # type: ignore
         model_schema = model_json_schema(

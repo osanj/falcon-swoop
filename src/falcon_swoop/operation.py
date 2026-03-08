@@ -9,7 +9,7 @@ from typing_extensions import NotRequired, Unpack
 import falcon_swoop.type_util as type_util
 from falcon_swoop.binary import BODY_TYPES
 from falcon_swoop.context import OpAsgiContext, OpContext
-from falcon_swoop.error import FalconSwoopConfigError, FalconSwoopConfigWarning
+from falcon_swoop.error import SwoopConfigError, SwoopConfigWarning
 from falcon_swoop.operation_spec import (
     HttpMethod,
     HttpMethodByFuncName,
@@ -39,9 +39,7 @@ def _find_param_type(
 ) -> tuple[OpParamType, bool]:
     optional = False
     if annotation == empty_val:
-        raise FalconSwoopConfigError(
-            f"{param_error_hint} requires type annotation, possible types are {param.allow_types}"
-        )
+        raise SwoopConfigError(f"{param_error_hint} requires type annotation, possible types are {param.allow_types}")
     if type_util.is_union_type(annotation):
         unpacked_opt = type_util.unpack_optional_type(annotation)
         if unpacked_opt.is_optional_for_single_type:
@@ -49,25 +47,23 @@ def _find_param_type(
                 annotation = unpacked_opt.types_without_none[0]
                 optional = True
             else:
-                raise FalconSwoopConfigError(f"{param_error_hint} cannot be optional")
+                raise SwoopConfigError(f"{param_error_hint} cannot be optional")
         else:
-            raise FalconSwoopConfigError(f"{param_error_hint} cannot be a union")
+            raise SwoopConfigError(f"{param_error_hint} cannot be a union")
 
     unpacked_lit = type_util.unpack_literal_type(annotation)
     if unpacked_lit.is_literal:
         allowed_literal_types = (str, int, bool)
         if not unpacked_lit.has_only_values_of_type(allowed_literal_types):
-            raise FalconSwoopConfigError(
-                f"{param_error_hint} must only have literal values of type {allowed_literal_types}"
-            )
+            raise SwoopConfigError(f"{param_error_hint} must only have literal values of type {allowed_literal_types}")
     elif type_util.safe_issubclass(annotation, Enum):
         if not issubclass(annotation, str):
-            raise FalconSwoopConfigError(
+            raise SwoopConfigError(
                 f"{param_error_hint} must be a string enum to be usable, either subclass "
                 f"from str and Enum or use StrEnum"
             )
     elif annotation not in param.allow_types:
-        raise FalconSwoopConfigError(
+        raise SwoopConfigError(
             f"{param_error_hint} has unsupported type annotation {annotation}, possible types are {param.allow_types}"
         )
     return annotation, optional
@@ -102,7 +98,7 @@ def _find_params(
         if optional and param.has_default_value and not param.has_none_as_default_value:
             warnings.warn(
                 f"{error_start} is type hinted as optional, but will never be None because of default value",
-                FalconSwoopConfigWarning,
+                SwoopConfigWarning,
             )
         param_input = OpFuncParam(
             name=param_name,
@@ -118,7 +114,7 @@ def _find_params(
                 warnings.warn(
                     f"{error_start} has mixed case{alias_hint}, but {param_kind_str} parameters are "
                     "case insensitive, it's recommend to use either lowercase or uppercase only",
-                    FalconSwoopConfigWarning,
+                    SwoopConfigWarning,
                 )
         param_inputs.append(param_input)
 
@@ -152,14 +148,14 @@ def _find_context_input(
 
         if input_type == incorrect_type:
             operation_kind = "synchronous" if is_sync else "asynchronous"
-            raise FalconSwoopConfigError(
+            raise SwoopConfigError(
                 f"Argument {param_name} has type {input_type}, but expected {expected_type} "
                 f"since the operation is {operation_kind}"
             )
 
         if input_type == expected_type:
             if context_param_name is not None:
-                raise FalconSwoopConfigError(
+                raise SwoopConfigError(
                     f"Duplicated context parameter, {context_param_name} already receives the operation context, "
                     f"{param_name} should be removed"
                 )
@@ -228,10 +224,10 @@ def inspect_function(  # noqa: D103
                 param_type = unpacked.types_without_none[0]
                 optional = True
             else:
-                raise FalconSwoopConfigError(f"Operation input parameter {param.name} cannot be a union")
+                raise SwoopConfigError(f"Operation input parameter {param.name} cannot be a union")
 
         if not type_util.safe_issubclass(param_type, BODY_TYPES):
-            raise FalconSwoopConfigError(
+            raise SwoopConfigError(
                 f"Operation input parameter {param.name} needs to be one of {BODY_TYPES}, bot got {param_type}"
             )
         if isinstance(accept, str):
@@ -245,7 +241,7 @@ def inspect_function(  # noqa: D103
         op_input.check_binary_dtype(is_sync)
 
     elif len(input_params) > 1:
-        raise FalconSwoopConfigError(f"More than 1 parameter found that could be http body: {','.join(input_params)}")
+        raise SwoopConfigError(f"More than 1 parameter found that could be http body: {','.join(input_params)}")
 
     # --- http response body
     output_candidate = signature.return_annotation
@@ -257,7 +253,7 @@ def inspect_function(  # noqa: D103
         output_candidate = type_util.unpack_generic_type(output_candidate, none_type_to_none=True)[0]
         hinted_wrapper = True
     elif type_util.safe_issubclass(output_candidate, OpOutput):
-        raise FalconSwoopConfigError(
+        raise SwoopConfigError(
             f"The payload type for {OpOutput.__name__} is missing, "
             f"the type hint should be {OpOutput.__name__}[<return_type>]"
         )
@@ -265,9 +261,9 @@ def inspect_function(  # noqa: D103
     output_type = None
     if output_candidate is not None:
         if type_util.is_union_type(output_candidate):
-            raise FalconSwoopConfigError("Return type cannot be a union or optional")
+            raise SwoopConfigError("Return type cannot be a union or optional")
         if not type_util.safe_issubclass(output_candidate, BODY_TYPES):
-            raise FalconSwoopConfigError(f"Return type needs to be one of {BODY_TYPES}, bot got {output_candidate}")
+            raise SwoopConfigError(f"Return type needs to be one of {BODY_TYPES}, bot got {output_candidate}")
         output_type = OpFuncOutputType(
             dtype=output_candidate,
             content_type=OpFuncOutputType.parse_content_type_config(response_ct, output_candidate),
@@ -297,7 +293,7 @@ def inspect_operation(  # noqa: D103
     response_ct = kwargs.get("response_content_type")
 
     if func.__name__ in HttpMethodByFuncName:
-        raise FalconSwoopConfigError(
+        raise SwoopConfigError(
             f"The responder method {func.__name__} is reserved and cannot be decorated, please use another name. "
             f"If you want to add documentation to a falcon responder method use @{operation_doc.__name__} instead."
         )
@@ -332,7 +328,7 @@ def inspect_operation(  # noqa: D103
     response_docs = {resp_status: response_doc}
     more_response_docs = kwargs.get("more_response_docs", {})
     if resp_status in more_response_docs:
-        raise FalconSwoopConfigError(
+        raise SwoopConfigError(
             f"Response docs for default HTTP status code {resp_status} are generated, cannot be provided"
         )
     response_docs.update(more_response_docs)
@@ -435,7 +431,7 @@ def inspect_operation_doc(  # noqa: D103
     operation_id = _get_operation_id_or_default(kwargs.get("operation_id"), func)
     method = HttpMethodByFuncName.get(func.__name__)
     if method is None:
-        raise FalconSwoopConfigError(
+        raise SwoopConfigError(
             f"The decorated method needs to have one of "
             f"the falcon request methods: {', '.join(HttpMethodByFuncName.keys())}"
         )

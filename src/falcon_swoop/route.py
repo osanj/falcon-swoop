@@ -1,7 +1,7 @@
 # ruff: noqa: D101, D102, D103, D107
 from typing import Any, Sequence
 
-from falcon_swoop.error import FalconSwoopConfigError
+from falcon_swoop.error import SwoopConfigError
 
 
 class ApiRoute:
@@ -11,7 +11,7 @@ class ApiRoute:
         param_names = self.find_param_names(self.parts)
         self.param_names = set(param_names)
         if len(param_names) != len(self.param_names):
-            raise FalconSwoopConfigError(f"Duplicate parameters were found in route {plain}")
+            raise SwoopConfigError(f"Duplicate parameters were found in route {plain}")
 
     @classmethod
     def find_param_names(cls, parts: Sequence[str]) -> Sequence[str]:

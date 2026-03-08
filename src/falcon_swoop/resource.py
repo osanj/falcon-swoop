@@ -8,7 +8,7 @@ from pydantic import BaseModel, ValidationError
 
 from falcon_swoop.binary import OpAsgiBinary, OpBinary
 from falcon_swoop.context import OpAsgiContext, OpContext
-from falcon_swoop.error import FalconSwoopConfigError, FalconSwoopWarning
+from falcon_swoop.error import SwoopConfigError, SwoopWarning
 from falcon_swoop.operation import ATTR_OPERATION
 from falcon_swoop.operation_spec import HttpMethod, OpFuncParamInput, OpInfo, OpInfoWithSpec
 from falcon_swoop.output import OpOutput
@@ -38,10 +38,10 @@ class SwoopResource:
         for method, ops in operations_by_method.items():
             if len(ops) > 1:
                 names = ", ".join([op.func_name for op in ops])
-                raise FalconSwoopConfigError(f"Multiple functions are defined as {method} operation: {names}")
+                raise SwoopConfigError(f"Multiple functions are defined as {method} operation: {names}")
 
         if len(operations_by_method) == 0:
-            raise FalconSwoopConfigError("Found no operation, at least one is required")
+            raise SwoopConfigError("Found no operation, at least one is required")
 
         return {method: ops[0] for method, ops in operations_by_method.items()}
 
@@ -63,7 +63,7 @@ class SwoopResource:
             missing = path_param_exp.difference(path_param_act)
             too_much = path_param_act.difference(path_param_exp)
             if len(missing) > 0 or len(too_much) > 0:
-                raise FalconSwoopConfigError(
+                raise SwoopConfigError(
                     f"Found mismatch for path parameters defined for operation {method}\n"
                     f"missing parameters: {missing}\n"
                     f"additional parameters: {too_much}"
@@ -72,7 +72,7 @@ class SwoopResource:
     def __patch_op(self, method: HttpMethod, sync: bool = True) -> None:
         method_name = f"on_{method}".lower()
         if getattr(self, method_name, None) is not None:
-            raise FalconSwoopConfigError(f"Decorated {method} operation is invalid because method {method_name} exists")
+            raise SwoopConfigError(f"Decorated {method} operation is invalid because method {method_name} exists")
 
         def forward(req: falcon.Request, resp: falcon.Response, **path_params: Any) -> None:
             self.__on_request(method, req, resp, **path_params)
@@ -118,7 +118,7 @@ class SwoopResource:
         if not func_input.case_sensitive:
             _input_kwargs = {k.lower(): v for k, v in input_kwargs.items()}
             if len(_input_kwargs) != len(input_kwargs):
-                warnings.warn("Unexpectedly lost data due to lowercasing", FalconSwoopWarning)
+                warnings.warn("Unexpectedly lost data due to lowercasing", SwoopWarning)
             _input_kwargs2 = {}
             for name, param_input in func_input.param_by_name.items():
                 input_name = param_input.input_name
