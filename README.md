@@ -6,7 +6,11 @@ It is fully opt-in: Use it for all your resources, start attaching typed operati
 to an existing app or just add a single typed resource to your project.
 OpenAPI documentation can also be added manually for old or very complex operations that don't fit in this framework.
 
-Compatible with Falcon 4.x and Pydantic 2.x.
+```commandline
+pip install falcon-swoop
+```
+
+(compatible with Falcon 4.x and Pydantic 2.x)
 
 
 ## User Guide
