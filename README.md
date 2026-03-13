@@ -63,7 +63,7 @@ def build_app() -> falcon.asgi.App:
     spec_json_route="/api/openapi.json",
     spec_swagger_route="/api/swagger.html",
   )
-  swoop.add_route(NewMessageController)
+  swoop.add_route(NewMessageController())
   return app
 ```
 
