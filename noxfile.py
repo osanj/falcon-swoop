@@ -9,13 +9,14 @@ PYDANTIC_VERSIONS = [PYDANTIC_NEWEST, "2.11", "2.10", "2.9", "2.6", "2.4", "2.2"
 @nox.parametrize("pydantic", PYDANTIC_VERSIONS)
 def matrix(session: nox.Session, pydantic: str):
     verbose = "verbose" in session.posargs
+    is_newest_version = pydantic == PYDANTIC_NEWEST
 
     session.install(f"pydantic=={pydantic}.*")
     session.install("-e", ".[dev]")
     session.run("python", "-c", "import pydantic; print(pydantic.__version__)")
 
     # run lint only on main version
-    if pydantic == PYDANTIC_NEWEST:
+    if is_newest_version:
         session.run("ruff", "check")
         session.run("ruff", "format", "--check")
         session.run("mypy")
@@ -24,3 +25,6 @@ def matrix(session: nox.Session, pydantic: str):
     if verbose:
         pytest_args.append("v")
     session.run(*pytest_args)
+
+    if is_newest_version:
+        session.run("hatchling", "build", "-t", "wheel")

@@ -1,15 +1,50 @@
 [project]
 name = "falcon-swoop"
-description = "Build simple APIs on top of falcon with pydantic data models, automated openapi doc generation included"
-requires-python = ">=3.10"
+description = "Build simple APIs on top of falcon with pydantic data models (FastAPI style), automated OpenAPI spec generation included"
+readme = {file = "README.md", content-type = "text/markdown"}
 license = "MIT"
 license-files = ["LICENSE"]
 dynamic = ["version"]
+requires-python = ">=3.10"
 dependencies = [
     "pydantic==2.*",
     "falcon==4.*",
     "typing-extensions>=4.1"
 ]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Web Environment",
+    "Natural Language :: English",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Topic :: Internet :: WWW/HTTP :: WSGI",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Typing :: Typed",
+]
+keywords = [
+    "asgi",
+    "wsgi",
+    "web",
+    "api",
+    "api-spec",
+    "openapi",
+    "swagger-ui",
+    "framework",
+    "rest",
+    "http",
+    "cloud",
+]
+
+[project.urls]
+Repository = "https://github.com/osanj/falcon-swoop"
 
 [project.optional-dependencies]
 dev = [
