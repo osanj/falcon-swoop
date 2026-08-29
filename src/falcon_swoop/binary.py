@@ -65,19 +65,37 @@ class OpBinary:
 class AsyncBinaryIO:
     """Simple async wrapper for readable IO, required by falcon async resources."""
 
-    def __init__(self, rio: ReadableIO, default_chunk_size: int = 8096):  # noqa: D107
+    def __init__(  # noqa: D107
+        self,
+        rio: ReadableIO,
+        iter_chunk_size: int = 8096,
+        max_read_size: int | None = None,
+    ):
         self.rio = rio
-        self.default_chunk_size = default_chunk_size
+        self.iter_chunk_size = iter_chunk_size
+        self.max_read_size = max_read_size
 
     async def read(self, n: int | None = None) -> bytes:  # noqa: D102
         return self.rio.read(n)
 
     async def __aiter__(self) -> AsyncIterator[bytes]:  # noqa: D105
-        while True:
-            chunk = self.rio.read(self.default_chunk_size)
-            yield chunk
-            if len(chunk) < self.default_chunk_size:
-                break
+        if self.max_read_size is None or self.max_read_size < 0:
+            while True:
+                chunk = self.rio.read(self.iter_chunk_size)
+                yield chunk
+                if len(chunk) < self.iter_chunk_size:
+                    break
+        else:
+            read_budget = self.max_read_size
+            while True:
+                chunk = self.rio.read(min(self.iter_chunk_size, read_budget))
+                chunk_size = len(chunk)
+                if chunk_size == 0:
+                    break
+                yield chunk
+                read_budget -= chunk_size
+                if read_budget <= 0:
+                    break
 
 
 class OpAsgiBinary:
