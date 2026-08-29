@@ -76,7 +76,7 @@ class AsyncBinaryIO:
     ):
         self.rio = rio
         self.iter_chunk_size = iter_chunk_size
-        if max_read_size <= 0:
+        if max_read_size is not None and max_read_size <= 0:
             raise ValueError("Read size must be at least 1 byte")
         self.__read_budget = max_read_size
 
@@ -95,7 +95,7 @@ class AsyncBinaryIO:
 
     async def __aiter__(self) -> AsyncIterator[bytes]:  # noqa: D105
         while True:
-            chunk = self.read(self.iter_chunk_size)
+            chunk = await self.read(self.iter_chunk_size)
             yield chunk
             if len(chunk) < self.iter_chunk_size:
                 break

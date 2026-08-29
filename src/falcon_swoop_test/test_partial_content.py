@@ -5,15 +5,14 @@ from falcon_swoop import (
     OpAsgiBinary,
     OpAsgiContext,
     OpOutput,
-    operation,
     SwoopResource,
+    operation,
 )
-from falcon_swoop.common.partial_content import partial_content_asgi, DEFAULT_CHUNK_SIZE
+from falcon_swoop.common.partial_content import DEFAULT_CHUNK_SIZE, ReadableAndSeekableIO, partial_content_asgi
 from falcon_swoop_test.resource.util import SimulatedResource
 
 
 class PartialContentDemo(SwoopResource):
-
     def __init__(self, open_io: Callable[[], tuple[BinaryIO, int]], chunk_size: int = DEFAULT_CHUNK_SIZE):
         super().__init__("/big-file")
         self.open_io = open_io
@@ -21,7 +20,8 @@ class PartialContentDemo(SwoopResource):
 
     @operation(method="GET")
     async def get_big_file(self, ctx: OpAsgiContext) -> OpOutput[OpAsgiBinary]:
-        bio, size = self.open_io()
+        bio: ReadableAndSeekableIO
+        bio, size = self.open_io()  # type: ignore[assignment]
         return partial_content_asgi(
             bio=bio,
             bio_size=size,
@@ -49,8 +49,8 @@ def test_partial_content_responses() -> None:
     b = len(original_bytes) - a - 1
     resp2 = resource.simulate_get(headers={"Range": f"bytes={a}-{b}"})
     assert resp2.status_code == 206
-    assert resp2.content == original_bytes[a:b + 1]
+    assert resp2.content == original_bytes[a : b + 1]
 
-    resp3 = resource.simulate_get(headers={"Range": f"bytes=0-1"})
+    resp3 = resource.simulate_get(headers={"Range": "bytes=0-1"})
     assert resp3.status_code == 206
     assert resp3.content == original_bytes[:2]
