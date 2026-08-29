@@ -192,7 +192,7 @@ class SwoopResource:
             resp.expires = output.expires
         if output.content_type is not None:
             resp.content_type = output.content_type
-        resp.headers.update(output.headers)
+        resp.set_headers(output.headers)
         resp.status_code = output.status_code if output.status_code is not None else op.default_status_code
 
     def __on_request(

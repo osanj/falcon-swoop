@@ -23,3 +23,5 @@ class BasicOutput(BaseModel):
 
 country_param = path_param(pattern=r"^[A-Z]{2}$")
 city_id_param = path_param(alias="cityId", ge=1)
+
+HEADER_SUBMISSION_COUNT = "x-submission-count"

@@ -2,7 +2,7 @@ import pytest
 
 from falcon_swoop.openapi.spec import OpenApiDocument, OpenApiOperation
 from falcon_swoop.operation_spec import HttpMethod
-from falcon_swoop_test.resource.common import BasicInput, WeatherLevel
+from falcon_swoop_test.resource.common import HEADER_SUBMISSION_COUNT, BasicInput, WeatherLevel
 from falcon_swoop_test.resource.util import SimulatedResource, SimulatedResourceLoader
 
 
@@ -187,6 +187,13 @@ def test_status_code_via_output(resource3: SimulatedResource) -> None:
 
     resp2 = resource3.simulate_put(params={"transient": True}, json_model=input_model)
     assert resp2.status_code == 200
+
+
+def test_custom_header_via_output(resource3: SimulatedResource) -> None:
+    input_model = BasicInput(param1="super sunny")
+    resp1 = resource3.simulate_put(params={"transient": True}, json_model=input_model)
+    assert resp1.status_code == 200
+    assert HEADER_SUBMISSION_COUNT in resp1.headers
 
 
 def test_accept_restricts_content_type(resource4: SimulatedResource) -> None:

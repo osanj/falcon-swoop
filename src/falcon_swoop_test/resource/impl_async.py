@@ -13,7 +13,14 @@ from falcon_swoop import (
     path_param,
     query_param,
 )
-from falcon_swoop_test.resource.common import BasicInput, BasicOutput, WeatherLevel, city_id_param, country_param
+from falcon_swoop_test.resource.common import (
+    HEADER_SUBMISSION_COUNT,
+    BasicInput,
+    BasicOutput,
+    WeatherLevel,
+    city_id_param,
+    country_param,
+)
 
 
 class BasicResource1(SwoopResource):
@@ -92,6 +99,7 @@ class BasicResource3(SwoopResource):
         return OpOutput(
             payload=payload,
             status_code=200 if transient else 201,
+            headers={HEADER_SUBMISSION_COUNT: "1"},
         )
 
 
