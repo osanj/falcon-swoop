@@ -63,20 +63,44 @@ class OpBinary:
 
 
 class AsyncBinaryIO:
-    """Simple async wrapper for readable IO, required by falcon async resources."""
+    """Simple async wrapper for readable IO.
 
-    def __init__(self, rio: ReadableIO, default_chunk_size: int = 8096):  # noqa: D107
+    Includes async streaming iter implementation which is required by falcon for async resources.
+    """
+
+    def __init__(  # noqa: D107
+        self,
+        rio: ReadableIO,
+        iter_chunk_size: int = 8192,
+        max_read_size: int | None = None,
+    ):
         self.rio = rio
-        self.default_chunk_size = default_chunk_size
+        self.iter_chunk_size = iter_chunk_size
+        if max_read_size is not None and max_read_size <= 0:
+            raise ValueError("Read size must be at least 1 byte")
+        self.__read_budget = max_read_size
+
+    def __read(self, n: int | None = None) -> bytes:
+        if self.__read_budget is not None:
+            if n is None:
+                n = self.__read_budget
+            else:
+                n = min(n, self.__read_budget)
+            if n == 0:
+                return b""
+        chunk = self.rio.read(n)
+        if self.__read_budget is not None:
+            self.__read_budget -= len(chunk)
+        return chunk
 
     async def read(self, n: int | None = None) -> bytes:  # noqa: D102
-        return self.rio.read(n)
+        return self.__read(n)
 
     async def __aiter__(self) -> AsyncIterator[bytes]:  # noqa: D105
         while True:
-            chunk = self.rio.read(self.default_chunk_size)
+            chunk = self.__read(self.iter_chunk_size)
             yield chunk
-            if len(chunk) < self.default_chunk_size:
+            if len(chunk) < self.iter_chunk_size:
                 break
 
 
