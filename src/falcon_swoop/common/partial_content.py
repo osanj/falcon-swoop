@@ -74,6 +74,6 @@ def partial_content_asgi(
     wrapper = AsyncBinaryIO(bio, iter_chunk_size=chunk_size, max_read_size=range_size)
     return OpOutput(
         payload=OpAsgiBinary(wrapper, content_length=range_size, content_type=content_type),
-        headers={"Accept-Ranges": "bytes", "Content-Range": f"bytes {a}-{b}/{byte_range}"},
+        headers={"Accept-Ranges": "bytes", "Content-Range": f"bytes {a}-{b}/{bio_size}"},
         status_code=206,
     )
