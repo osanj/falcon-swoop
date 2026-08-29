@@ -63,39 +63,42 @@ class OpBinary:
 
 
 class AsyncBinaryIO:
-    """Simple async wrapper for readable IO, required by falcon async resources."""
+    """
+    Simple async wrapper for readable IO including async streaming iter implementation.
+    The later is required by falcon async resources.
+    """
 
     def __init__(  # noqa: D107
         self,
         rio: ReadableIO,
-        iter_chunk_size: int = 8096,
+        iter_chunk_size: int = 8192,
         max_read_size: int | None = None,
     ):
         self.rio = rio
         self.iter_chunk_size = iter_chunk_size
-        self.max_read_size = max_read_size
+        if max_read_size <= 0:
+            raise ValueError("Read size must be at least 1 byte")
+        self.__read_budget = max_read_size
 
     async def read(self, n: int | None = None) -> bytes:  # noqa: D102
-        return self.rio.read(n)
+        if self.__read_budget is not None:
+            if n is None:
+                n = self.__read_budget
+            else:
+                n = min(n, self.__read_budget)
+            if n == 0:
+                return b""
+        chunk = self.rio.read(n)
+        if self.__read_budget is not None:
+            self.__read_budget -= len(chunk)
+        return chunk
 
     async def __aiter__(self) -> AsyncIterator[bytes]:  # noqa: D105
-        if self.max_read_size is None or self.max_read_size < 0:
-            while True:
-                chunk = self.rio.read(self.iter_chunk_size)
-                yield chunk
-                if len(chunk) < self.iter_chunk_size:
-                    break
-        else:
-            read_budget = self.max_read_size
-            while True:
-                chunk = self.rio.read(min(self.iter_chunk_size, read_budget))
-                chunk_size = len(chunk)
-                if chunk_size == 0:
-                    break
-                yield chunk
-                read_budget -= chunk_size
-                if read_budget <= 0:
-                    break
+        while True:
+            chunk = self.read(self.iter_chunk_size)
+            yield chunk
+            if len(chunk) < self.iter_chunk_size:
+                break
 
 
 class OpAsgiBinary:

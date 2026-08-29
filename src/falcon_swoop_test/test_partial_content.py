@@ -32,17 +32,25 @@ class PartialContentDemo(SwoopResource):
 
 def test_partial_content_responses() -> None:
     original_bytes = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-    cunk_size = len(original_bytes) // 10
+    chunk_size = len(original_bytes) // 4
 
     def get_bio() -> tuple[BinaryIO, int]:
         return io.BytesIO(original_bytes), len(original_bytes)
 
-    demo = PartialContentDemo(get_bio, chunk_size=cunk_size)
+    demo = PartialContentDemo(get_bio, chunk_size=chunk_size)
     resource = SimulatedResource(demo, sync=False)
 
     resp1 = resource.simulate_get()
     assert resp1.status_code == 200
     assert resp1.headers.get("Accept-Ranges") == "bytes"
-    content_size = len(resp1.content)
-    assert content_size == chunk_size
-    assert content_size < resp1["Content-Length"]
+    assert len(resp1.content) == len(original_bytes)
+
+    a = chunk_size
+    b = len(original_bytes) - a - 1
+    resp2 = resource.simulate_get(headers={"Range": f"bytes={a}-{b}"})
+    assert resp2.status_code == 206
+    assert resp2.content == original_bytes[a:b + 1]
+
+    resp3 = resource.simulate_get(headers={"Range": f"bytes=0-1"})
+    assert resp3.status_code == 206
+    assert resp3.content == original_bytes[:2]
