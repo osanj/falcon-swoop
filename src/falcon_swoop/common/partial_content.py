@@ -6,8 +6,10 @@ from falcon_swoop.output import OpOutput
 
 
 class ReadableAndSeekableIO(Protocol):
-    def read(self, n: int | None = ..., /) -> bytes: ...
-    def seek(self, pos: int, whence: int = 0, /) -> int: ...
+    """File-like protocol that defines a read as well as a seek method."""
+
+    def read(self, n: int | None = ..., /) -> bytes: ...  # noqa: D102
+    def seek(self, pos: int, whence: int = 0, /) -> int: ...  # noqa: D102
 
 
 DEFAULT_CHUNK_SIZE = 64 * 1024
@@ -19,6 +21,10 @@ def partial_file_asgi(
     content_type: str = "application/octet-stream",
     chunk_size: int = DEFAULT_CHUNK_SIZE,
 ) -> OpOutput[OpAsgiBinary]:
+    """File utility function to build binary output for requests with ``Range`` header (206 partial content).
+
+    For more details see doc string of ``partial_content_asgi``.
+    """
     if not path.is_file():
         raise FileNotFoundError(f"Provided path does not point to a file: {path}")
     bio = path.open(mode="rb")
@@ -33,9 +39,22 @@ def partial_content_asgi(
     content_type: str = "application/octet-stream",
     chunk_size: int = DEFAULT_CHUNK_SIZE,
 ) -> OpOutput[OpAsgiBinary]:
-    # https://www.rfc-editor.org/info/rfc9110/#status.206
-    # https://www.rfc-editor.org/info/rfc9110/#name-byte-ranges
+    """Byte stream utility function to build binary output for requests with ``Range`` header (206 partial content).
 
+    Implements `206 Partial Content` partially (no pun intended). Only supports "single part" requests, multiple ranges
+    in the request are not supported, e.g. `Range: bytes=234-639,4590-7999` (which apparently is uncommon anyway).
+    This is function is still useful for instance browsers do partial requests for ``<video>`` tags, this enables
+    a quick start of the stream even if the entire video has not been retrieved yet.
+
+    See https://www.rfc-editor.org/info/rfc9110/#status.206 and https://www.rfc-editor.org/info/rfc9110/#name-byte-ranges.
+
+    :param bio: binary IO, must be readable and seekable
+    :param bio_size: size of the binary IO
+    :param byte_range: parsed ``Range`` header, falcon provides this in its request objects, for instance: ``req.range``
+        (add an falcon swoop context object to your operation inputs to access the raw request: ``ctx.req.range``)
+    :param content_type: content type of the binary IO
+    :param chunk_size: size in bytes of the chunks that are streamed into the response back to the client
+    """
     # normal response in case no range is provided
     if byte_range is None:
         wrapper = AsyncBinaryIO(bio, iter_chunk_size=chunk_size)

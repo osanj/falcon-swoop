@@ -63,9 +63,9 @@ class OpBinary:
 
 
 class AsyncBinaryIO:
-    """
-    Simple async wrapper for readable IO including async streaming iter implementation.
-    The later is required by falcon async resources.
+    """Simple async wrapper for readable IO.
+
+    Includes async streaming iter implementation which is required by falcon for async resources.
     """
 
     def __init__(  # noqa: D107
